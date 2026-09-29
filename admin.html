@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>公開管理</title>
+<style>
+  :root{
+    --bg:#eef1f4; --surface:#ffffff; --text:#1c232b; --sub:#5a6672; --line:#d6dce2; --field:#f7f9fa;
+    --accent:#c9721f; --accent-ink:#ffffff;
+    --ok-bg:#e3f3e8; --ok:#23713f; --stop-bg:#f9e4e2; --stop:#a8342b; --stop-btn:#b83a30; --go-btn:#2c8a4c;
+    color-scheme:light;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --bg:#141a20; --surface:#1d242c; --text:#e8edf1; --sub:#9aa6b2; --line:#2c3640; --field:#161c22;
+      --accent:#f0a14a; --accent-ink:#1a1a1a;
+      --ok-bg:#1d3a28; --ok:#8fdcaa; --stop-bg:#402220; --stop:#ff9d94; --stop-btn:#d9534a; --go-btn:#3f9d5d;
+      color-scheme:dark;
+    }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--bg);color:var(--text);font:15px/1.7 system-ui,-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;padding-inline:16px;padding-block:calc(32px + env(safe-area-inset-top,0px)) calc(32px + env(safe-area-inset-bottom,0px))}
+  .wrap{max-width:680px;margin:0 auto;display:grid;gap:20px}
+  header{display:grid;gap:4px}
+  header a{color:var(--sub);font-size:13px;text-decoration:none}
+  header a:hover{text-decoration:underline}
+  h1{margin:0;font-size:26px;line-height:1.3}
+  h2{margin:0;font-size:16px}
+  p{margin:0}
+  .sub{color:var(--sub);font-size:13px}
+  section{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;display:grid;gap:12px}
+  ol{margin:0;padding-left:1.4em;color:var(--sub);font-size:13px;display:grid;gap:2px}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;background:var(--field);border:1px solid var(--line);border-radius:4px;padding:0 4px;color:var(--text)}
+  label{display:grid;gap:4px;font-size:13px;color:var(--sub)}
+  label.chk{display:flex;align-items:center;gap:8px;color:var(--text)}
+  input[type=password]{font:inherit;color:var(--text);background:var(--field);border:1px solid var(--line);border-radius:8px;padding:9px 12px;width:100%}
+  input:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  button{font:inherit;font-weight:600;border-radius:9px;border:1px solid var(--line);background:var(--field);color:var(--text);padding:8px 16px;cursor:pointer;min-height:40px}
+  button:hover{filter:brightness(1.05)}
+  button:disabled{opacity:.5;cursor:default}
+  button.primary{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+  button.stop{background:var(--stop-btn);color:#fff;border-color:transparent}
+  button.go{background:var(--go-btn);color:#fff;border-color:transparent}
+  .actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .plans{display:grid;gap:10px}
+  .plan{border:1px solid var(--line);border-radius:10px;padding:12px 14px;display:grid;gap:8px}
+  .plan .row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+  .plan a{color:var(--sub);font-size:12px}
+  .pill{display:inline-flex;align-items:center;gap:6px;padding:1px 10px;border-radius:999px;font-size:12px;font-weight:600}
+  .pill::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+  .pill.on{background:var(--ok-bg);color:var(--ok)}
+  .pill.off{background:var(--stop-bg);color:var(--stop)}
+  .confirm{background:var(--stop-bg);border-radius:8px;padding:10px 12px;display:grid;gap:8px;font-size:13px}
+  .msg{font-size:13px;border-radius:8px;padding:8px 12px}
+  .msg.ok{background:var(--ok-bg);color:var(--ok)}
+  .msg.err{background:var(--stop-bg);color:var(--stop)}
+  .who{font-size:13px;color:var(--sub)}
+  [hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <a href="./">‹ 間取り一覧へ戻る</a>
+    <h1>公開管理</h1>
+    <p class="sub">間取りごとに、見られる状態（公開中）と見られない状態（公開停止中）を切り替えます。操作できるのは、このサイトの GitHub リポジトリに書き込める人だけです。</p>
+  </header>
+
+  <section id="login">
+    <h2>管理者として入る</h2>
+    <p class="sub">GitHub で作った「アクセストークン」を入力してください。トークンは GitHub へ直接送られ、このサイトには保存されません。</p>
+    <label for="token">アクセストークン
+      <input type="password" id="token" autocomplete="off" spellcheck="false" placeholder="github_pat_…">
+    </label>
+    <label class="chk" for="remember"><input type="checkbox" id="remember"> このブラウザに記憶する（共用パソコンでは使わないでください）</label>
+    <div class="actions"><button class="primary" id="loginBtn">入る</button></div>
+    <div class="msg err" id="loginErr" hidden></div>
+    <details>
+      <summary class="sub">トークンの作り方</summary>
+      <ol style="margin-top:8px">
+        <li><a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">GitHub のトークン作成ページ</a>を開く（Fine-grained token）</li>
+        <li>Repository access で「Only select repositories」→ <code>floorplan-3d</code> を選ぶ</li>
+        <li>Permissions の Repository permissions で <code>Contents</code> を「Read and write」にする</li>
+        <li>有効期限を決めて作成し、表示されたトークンをコピーして上に貼り付ける</li>
+      </ol>
+    </details>
+  </section>
+
+  <section id="panel" hidden>
+    <div class="actions" style="justify-content:space-between">
+      <h2>間取りごとの公開状態</h2>
+      <span class="who" id="who"></span>
+    </div>
+    <div class="plans" id="plans"></div>
+    <div class="msg" id="msg" hidden></div>
+    <p class="sub" id="updated"></p>
+    <p class="sub">切り替えてからサイトに反映されるまで、1〜2分かかります。今ページを開いている人の画面も、1分以内に自動で切り替わります。</p>
+    <div class="actions"><button id="reloadBtn">最新の状態を読み込む</button><button id="logoutBtn">管理者をやめる</button></div>
+  </section>
+
+  <section>
+    <h2>サイト全体を完全に止めたいとき</h2>
+    <p class="sub">この切り替えは、閲覧者の画面に「公開停止中」を表示する仕組みです。ファイル自体は公開されたままなので、サイトごと止めたい場合は GitHub の<a href="https://github.com/Disk-nsmr/floorplan-3d/settings/pages" target="_blank" rel="noopener">Pages 設定</a>で「Unpublish site」を選んでください。</p>
+  </section>
+</div>
+
+<script>
+(() => {
+  const OWNER = 'Disk-nsmr', REPO = 'floorplan-3d', BRANCH = 'main', FILE = 'access.json';
+  const PLANS = [
+    { id: 'plan1', name: '洋7.5帖 1K', href: 'plan1.html' },
+    { id: 'plan2', name: '洋8.2帖 1K', href: 'plan2.html' },
+  ];
+  const API = `https://api.github.com/repos/${OWNER}/${REPO}`;
+  const KEY = 'floorplan-admin-token';
+  const $ = id => document.getElementById(id);
+
+  let token = null, access = null, sha = null, busy = false, confirming = null;
+
+  const store = {
+    get() { try { return sessionStorage.getItem(KEY) || localStorage.getItem(KEY); } catch (e) { return null; } },
+    set(t, remember) {
+      try { (remember ? localStorage : sessionStorage).setItem(KEY, t); } catch (e) {}
+    },
+    clear() { try { sessionStorage.removeItem(KEY); localStorage.removeItem(KEY); } catch (e) {} },
+  };
+
+  async function gh(path, opts = {}) {
+    const r = await fetch(path.startsWith('https://') ? path : API + path, {
+      ...opts,
+      cache: 'no-store',
+      headers: { Accept: 'application/vnd.github+json', Authorization: 'Bearer ' + token, 'X-GitHub-Api-Version': '2022-11-28', ...(opts.headers || {}) },
+    });
+    let body = null;
+    try { body = await r.json(); } catch (e) {}
+    return { status: r.status, ok: r.ok, body };
+  }
+  const b64encode = str => btoa(String.fromCharCode(...new TextEncoder().encode(str)));
+  const b64decode = b64 => new TextDecoder().decode(Uint8Array.from(atob(b64.replace(/\s/g, '')), c => c.charCodeAt(0)));
+  const fmt = iso => {
+    const d = new Date(iso);
+    return isNaN(d) ? '' : d.toLocaleString('ja-JP', { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  };
+
+  function showMsg(text, kind) { const m = $('msg'); m.textContent = text; m.className = 'msg ' + kind; m.hidden = !text; }
+
+  async function login(t, remember) {
+    token = t;
+    $('loginErr').hidden = true;
+    $('loginBtn').disabled = true;
+    const repo = await gh('');
+    $('loginBtn').disabled = false;
+    const fail = text => { token = null; store.clear(); $('loginErr').textContent = text; $('loginErr').hidden = false; $('login').hidden = false; $('panel').hidden = true; };
+    if (repo.status === 401) return fail('トークンが正しくないか、有効期限が切れています。');
+    if (!repo.ok) return fail('リポジトリを確認できませんでした（' + repo.status + '）。トークンの対象リポジトリを確認してください。');
+    const p = repo.body.permissions || {};
+    if (!(p.push || p.admin || p.maintain)) return fail('このトークンの持ち主には、リポジトリへの書き込み権限がありません。');
+    store.set(t, remember);
+    const user = await gh('https://api.github.com/user');
+    $('who').textContent = user.ok && user.body.login ? user.body.login + ' として操作中' : '';
+    $('login').hidden = true; $('panel').hidden = false; $('token').value = '';
+    await load();
+  }
+
+  async function load() {
+    const r = await gh(`/contents/${FILE}?ref=${BRANCH}`);
+    if (!r.ok) { showMsg('公開状態を読み込めませんでした（' + r.status + '）。', 'err'); return; }
+    sha = r.body.sha;
+    try { access = JSON.parse(b64decode(r.body.content)); } catch (e) { access = {}; }
+    render();
+  }
+
+  function render() {
+    const wrap = $('plans'); wrap.textContent = '';
+    for (const p of PLANS) {
+      const on = access[p.id] === true;
+      const el = document.createElement('div'); el.className = 'plan';
+      const row = document.createElement('div'); row.className = 'row';
+      const left = document.createElement('div');
+      const name = document.createElement('strong'); name.textContent = p.name;
+      const pill = document.createElement('span'); pill.className = 'pill ' + (on ? 'on' : 'off'); pill.textContent = on ? '公開中' : '公開停止中';
+      pill.style.marginLeft = '10px';
+      left.append(name, pill);
+      const btn = document.createElement('button');
+      btn.className = on ? 'stop' : 'go';
+      btn.textContent = on ? '公開を停止する' : '公開を再開する';
+      btn.disabled = busy;
+      btn.onclick = () => { if (on) { confirming = p.id; render(); } else save(p, true); };
+      row.append(left, btn);
+      const link = document.createElement('a'); link.href = p.href; link.target = '_blank'; link.rel = 'noopener'; link.textContent = 'ページを開く ↗';
+      el.append(row, link);
+      if (confirming === p.id) {
+        btn.hidden = true;
+        const c = document.createElement('div'); c.className = 'confirm';
+        const t = document.createElement('p'); t.textContent = `「${p.name}」を停止すると、ページを開いた人には「公開停止中」の画面だけが表示されます。`;
+        const acts = document.createElement('div'); acts.className = 'actions';
+        const yes = document.createElement('button'); yes.className = 'stop'; yes.textContent = '停止する'; yes.disabled = busy;
+        yes.onclick = () => { confirming = null; save(p, false); };
+        const no = document.createElement('button'); no.textContent = 'キャンセル';
+        no.onclick = () => { confirming = null; render(); };
+        acts.append(yes, no); c.append(t, acts); el.append(c);
+        setTimeout(() => yes.focus(), 0);
+      }
+      wrap.append(el);
+    }
+    $('updated').textContent = access.updatedAt ? '最終変更：' + fmt(access.updatedAt) : '';
+  }
+
+  async function save(p, next) {
+    busy = true; showMsg('保存しています…', 'ok'); render();
+    const nextAccess = { ...access, [p.id]: next, updatedAt: new Date().toISOString() };
+    const r = await gh(`/contents/${FILE}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        message: `公開設定: ${p.name} を${next ? '公開' : '停止'}`,
+        content: b64encode(JSON.stringify(nextAccess, null, 2) + '\n'),
+        sha, branch: BRANCH,
+      }),
+    });
+    busy = false;
+    if (r.ok) {
+      access = nextAccess; sha = r.body.content.sha;
+      showMsg(`「${p.name}」を${next ? '公開中' : '公開停止中'}にしました。1〜2分でサイトに反映されます。`, 'ok');
+      render();
+    } else if (r.status === 409) {
+      showMsg('ほかの変更と重なったため保存できませんでした。最新の状態を読み込み直したので、もう一度操作してください。', 'err');
+      await load();
+    } else if (r.status === 401) {
+      showMsg('トークンの有効期限が切れています。入り直してください。', 'err');
+      logout(false);
+    } else if (r.status === 403 || r.status === 404) {
+      showMsg('書き込みが許可されませんでした。トークンの権限で Contents が「Read and write」になっているか確認してください。', 'err');
+      render();
+    } else {
+      showMsg('保存できませんでした（' + r.status + '）。時間をおいてもう一度お試しください。', 'err');
+      render();
+    }
+  }
+
+  function logout(clearMsg = true) {
+    token = null; access = null; sha = null; store.clear();
+    $('panel').hidden = true; $('login').hidden = false;
+    if (clearMsg) showMsg('', 'ok');
+  }
+
+  $('loginBtn').onclick = () => { const t = $('token').value.trim(); if (t) login(t, $('remember').checked); else $('token').focus(); };
+  $('token').addEventListener('keydown', e => { if (e.key === 'Enter') $('loginBtn').click(); });
+  $('reloadBtn').onclick = () => { showMsg('', 'ok'); load(); };
+  $('logoutBtn').onclick = () => logout();
+
+  const saved = store.get();
+  if (saved) login(saved, !!(() => { try { return localStorage.getItem(KEY); } catch (e) { return null; } })());
+})();
+</script>
+</body>
+</html>
