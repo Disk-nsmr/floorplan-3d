@@ -118,7 +118,7 @@
   <div class="body">
     <p id="summary" style="margin:0"></p>
     <canvas id="preview"></canvas>
-    <div class="legend"><span><i style="background:#f0a046"></i>広さを合わせる部屋</span><span><i style="background:#e5383b"></i>壁</span><span><i style="background:#22b35e"></i>ドア・出入口</span><span><i style="background:#2f7fe0"></i>窓</span></div>
+    <div class="legend"><span><i style="background:#f0a046"></i>広さを合わせる部屋</span><span><i style="background:#e5383b"></i>壁</span><span><i style="background:#22b35e"></i>ドア・出入口</span><span><i style="background:#2f7fe0"></i>窓</span><span><i style="background:transparent;border:2px solid #b07ad8"></i>設備</span></div>
     <div style="display:grid;gap:6px">
       <span class="sub">広さを合わせる（任意）：<span id="biggest"></span>は図面で何帖ですか？</span>
       <div class="row"><input type="number" id="jo" step="0.1" min="0.5" aria-label="帖数"><span>帖</span><button id="joBtn">合わせる</button></div>
@@ -195,7 +195,11 @@
     $('start').hidden = true; $('stage').hidden = false; $('result').hidden = false;
     viewer = Walk3D.mount($('stage'), result.plan, { title: '自動で作った3D', home: true });
     const s = result.stats, rooms = result.plan.rooms;
-    $('summary').textContent = `部屋 ${s.rooms}・ドア ${s.doors}・出入口 ${s.opens}・窓 ${s.windows} を見つけました。下の図の色分けが読み取った結果です。`;
+    const NAMES = { kitchen: 'キッチン', tub: '浴槽', basin: '洗面台', toilet: 'トイレ', washer: '洗濯機' };
+    const found = Object.keys(NAMES).filter(k => s.items[k]), missing = Object.keys(NAMES).filter(k => !s.items[k]);
+    $('summary').textContent = `部屋 ${s.rooms}・ドア ${s.doors}・出入口 ${s.opens}・窓 ${s.windows} を見つけました。`
+      + (found.length ? `設備：${found.map(k => NAMES[k]).join('・')} を置きました。` : '')
+      + (missing.length ? `（${missing.map(k => NAMES[k]).join('・')} は図面から見つけられませんでした）` : '');
     $('biggest').textContent = `オレンジ色の部屋（いま約${rooms[0].jo}帖）`;
     $('jo').value = '';
     drawPreview();
@@ -214,6 +218,8 @@
       if (c) { d[i * 4] = c[0]; d[i * 4 + 1] = c[1]; d[i * 4 + 2] = c[2]; }
     }
     g.putImageData(id, 0, 0);
+    g.lineWidth = Math.max(2, W / 260); g.strokeStyle = '#8e44ad';
+    for (const it of result.plan.items) g.strokeRect(it.x1, it.y1, it.x2 - it.x1, it.y2 - it.y1);
     cv.getContext('2d').drawImage(tmp, 0, 0, cv.width, cv.height);
   }
   $('joBtn').onclick = () => {
