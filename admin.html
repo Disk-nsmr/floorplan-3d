@@ -178,7 +178,7 @@
     if (c.ok) { try { catalog = JSON.parse(b64decode(c.body.content)); } catch (e) {} }
     PLANS = FIXED_PLANS.concat((Array.isArray(catalog) ? catalog : [])
       .filter(p => p && /^[a-z0-9-]+$/i.test(p.id))
-      .map(p => ({ id: p.id, name: p.title || '名前なし', href: `view.html?id=${p.id}`, edit: `app.html?id=${p.id}` })));
+      .map(p => ({ id: p.id, name: p.title || '名前なし', href: `view.html?id=${p.id}`, edit: p.mode === 'auto' ? null : `editor.html?id=${p.id}` })));
     render();
   }
 
@@ -201,7 +201,7 @@
       row.append(left, btn);
       const link = document.createElement('a'); link.href = p.href; link.target = '_blank'; link.rel = 'noopener'; link.textContent = 'ページを開く ↗';
       const links = document.createElement('div'); links.className = 'actions'; links.append(link);
-      if (p.edit) { const e = document.createElement('a'); e.href = p.edit; e.textContent = '作成アプリで直す ↗'; e.target = '_blank'; e.rel = 'noopener'; links.append(e); }
+      if (p.edit) { const e = document.createElement('a'); e.href = p.edit; e.textContent = 'エディターで直す ↗'; e.target = '_blank'; e.rel = 'noopener'; links.append(e); }
       el.append(row, links);
       if (confirming === p.id) {
         btn.hidden = true;

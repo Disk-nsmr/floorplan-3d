@@ -161,7 +161,8 @@ ${opts.onClose ? '<button class="w3d-close">編集に戻る</button>' : ''}
     // ---------- 床・天井 ----------
     const roomsSorted = plan.rooms.map(r => ({ ...r, x1: Math.min(r.x1, r.x2), x2: Math.max(r.x1, r.x2), y1: Math.min(r.y1, r.y2), y2: Math.max(r.y1, r.y2) }))
       .sort((a, b) => (a.x2 - a.x1) * (a.y2 - a.y1) - (b.x2 - b.x1) * (b.y2 - b.y1));
-    for (const r of roomsSorted) {
+    const floorList = roomsSorted.filter(r => !r.noFloor).concat((plan.floorRects || []).map(r => ({ ...r, kind: 'wood', floorOnly: true })));
+    for (const r of floorList) {
       const k = KINDS[r.kind] || KINDS.wood;
       const w = (r.x2 - r.x1) * S, d = (r.y2 - r.y1) * S;
       const g = new THREE.PlaneGeometry(w, d); g.rotateX(-Math.PI / 2);
@@ -169,7 +170,7 @@ ${opts.onClose ? '<button class="w3d-close">編集に戻る</button>' : ''}
       const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ map: t, roughness: .6 }));
       m.position.set(X((r.x1 + r.x2) / 2), k.y, Z((r.y1 + r.y2) / 2)); m.receiveShadow = true; scene.add(m); floors.push(m);
       if (!k.outdoor) {
-        const e = 0.08;
+        const e = r.floorOnly ? 0.01 : 0.08;
         ceilings.push(boxW(X((r.x1 + r.x2) / 2), HC + 0.06, Z((r.y1 + r.y2) / 2), w + e * 2, 0.12, d + e * 2, M.ceil));
       }
     }
@@ -186,6 +187,14 @@ ${opts.onClose ? '<button class="w3d-close">編集に戻る</button>' : ''}
       const th = w.t || 0.12, low = w.h === 'low', top = low ? 1.1 : HC;
       const rotY = -Math.atan2(dz, dx);
       const at = u => [ax + dx * u, az + dz * u];
+      const yb = w.bottom ?? -0.2, yt = w.top ?? top;
+      if (w.glass) {
+        const [cx, cz] = at(L / 2);
+        boxW(cx, (yb + yt) / 2, cz, L, yt - yb, 0.012, M.glass, scene, rotY).castShadow = false;
+        boxW(cx, yb - 0.01, cz, L, 0.02, th + 0.01, M.alum, scene, rotY);
+        if (yb < 1.0) cols.push({ seg: [ax, az, bx, bz], r: th / 2 });
+        continue;
+      }
       const piece = (u0, u1, y0, y1, m = low ? M.ext : M.wall, collide = true) => {
         if (u1 - u0 < 0.005 || y1 - y0 < 0.005) return;
         const [cx, cz] = at((u0 + u1) / 2);
@@ -217,7 +226,7 @@ ${opts.onClose ? '<button class="w3d-close">編集に戻る</button>' : ''}
         }
         cur = Math.max(cur, o.u1);
       }
-      if (cur < L) piece(cur, L, -0.2, top);
+      if (cur < L) piece(cur, L, cur > 0 ? -0.2 : yb, cur > 0 ? top : yt);
     }
 
     function makeDoor(o, at, dx, dz, nx, nz, W, th) {
@@ -344,7 +353,7 @@ ${opts.onClose ? '<button class="w3d-close">編集に戻る</button>' : ''}
     const indoor = roomsSorted.filter(r => !(KINDS[r.kind] || {}).outdoor).sort((a, b) => (b.x2 - b.x1) * (b.y2 - b.y1) - (a.x2 - a.x1) * (a.y2 - a.y1));
     indoor.slice(0, 8).forEach(r => {
       const area = (r.x2 - r.x1) * (r.y2 - r.y1) * S * S;
-      const cx = X((r.x1 + r.x2) / 2), cz = Z((r.y1 + r.y2) / 2);
+      const cx = X(r.cx ?? (r.x1 + r.x2) / 2), cz = Z(r.cy ?? (r.y1 + r.y2) / 2);
       cylW(cx, HC - 0.03, cz, Math.min(0.25, 0.08 + area * 0.012), 0.05, M.lamp).castShadow = false;
       const L = new THREE.PointLight(0xfff3e0, Math.min(2.6, 0.6 + area * 0.14), Math.sqrt(area) * 2.2 + 2, 2);
       L.position.set(cx, HC - 0.25, cz); scene.add(L);
@@ -382,7 +391,7 @@ ${opts.onClose ? '<button class="w3d-close">編集に戻る</button>' : ''}
       const t = new THREE.CanvasTexture(cv); t.encoding = THREE.sRGBEncoding;
       const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, transparent: true }));
       const sz = Math.max(0.6, Math.min(1.3, Math.sqrt((r.x2 - r.x1) * (r.y2 - r.y1)) * S / 3));
-      sp.scale.set(1.6 * sz, 0.4 * sz, 1); sp.position.set(X((r.x1 + r.x2) / 2), HC + 0.5, Z((r.y1 + r.y2) / 2)); sp.renderOrder = 10;
+      sp.scale.set(1.6 * sz, 0.4 * sz, 1); sp.position.set(X(r.cx ?? (r.x1 + r.x2) / 2), HC + 0.5, Z(r.cy ?? (r.y1 + r.y2) / 2)); sp.renderOrder = 10;
       labels.add(sp);
     }
     const avatar = new THREE.Group(); avatar.visible = false; scene.add(avatar);
@@ -423,7 +432,14 @@ ${opts.onClose ? '<button class="w3d-close">編集に戻る</button>' : ''}
       player.y = player.fy + player.eye;
     }
     function roomView(r) {
-      const cx = X((r.x1 + r.x2) / 2), cz = Z((r.y1 + r.y2) / 2), w = (r.x2 - r.x1) * S, d = (r.y2 - r.y1) * S;
+      const w = (r.x2 - r.x1) * S, d = (r.y2 - r.y1) * S;
+      if (r.cx != null) {
+        // 部屋の中心から少し下がって、長い方向を見渡す（真上の照明で白飛びしないように）
+        const wide = w >= d, back = Math.min(1.5, (wide ? w : d) * 0.3);
+        placeTo(X(r.cx) - (wide ? back : 0), Z(r.cy) + (wide ? 0 : back), wide ? -Math.PI / 2 : 0);
+        return;
+      }
+      const cx = X((r.x1 + r.x2) / 2), cz = Z((r.y1 + r.y2) / 2);
       // 部屋の端寄りに立って、長い方向を見渡す
       if (w >= d) placeTo(cx - w * 0.3, cz, -Math.PI / 2); else placeTo(cx, cz + d * 0.3, 0);
     }
