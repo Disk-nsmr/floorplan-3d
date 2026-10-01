@@ -110,11 +110,12 @@
 <script>
 (() => {
   const OWNER = 'Disk-nsmr', REPO = 'floorplan-3d', BRANCH = 'main', FILE = 'access.json';
-  const PLANS = [
+  const FIXED_PLANS = [
     { id: 'plan1', name: '洋7.5帖 1K', href: 'plan1.html' },
     { id: 'plan2', name: '洋8.2帖 1K', href: 'plan2.html' },
     { id: 'plan3', name: '3LDK 戸建て', href: 'plan3.html' },
   ];
+  let PLANS = FIXED_PLANS;
   const API = `https://api.github.com/repos/${OWNER}/${REPO}`;
   const KEY = 'floorplan-admin-token';
   const $ = id => document.getElementById(id);
@@ -171,6 +172,13 @@
     if (!r.ok) { showMsg('公開状態を読み込めませんでした（' + r.status + '）。', 'err'); return; }
     sha = r.body.sha;
     try { access = JSON.parse(b64decode(r.body.content)); } catch (e) { access = {}; }
+    // 間取り3Dメーカーで公開した間取りも一覧に加える
+    const c = await gh(`/contents/catalog.json?ref=${BRANCH}`);
+    let catalog = [];
+    if (c.ok) { try { catalog = JSON.parse(b64decode(c.body.content)); } catch (e) {} }
+    PLANS = FIXED_PLANS.concat((Array.isArray(catalog) ? catalog : [])
+      .filter(p => p && /^[a-z0-9-]+$/i.test(p.id))
+      .map(p => ({ id: p.id, name: p.title || '名前なし', href: `view.html?id=${p.id}`, edit: `app.html?id=${p.id}` })));
     render();
   }
 
@@ -192,7 +200,9 @@
       btn.onclick = () => { if (on) { confirming = p.id; render(); } else save(p, true); };
       row.append(left, btn);
       const link = document.createElement('a'); link.href = p.href; link.target = '_blank'; link.rel = 'noopener'; link.textContent = 'ページを開く ↗';
-      el.append(row, link);
+      const links = document.createElement('div'); links.className = 'actions'; links.append(link);
+      if (p.edit) { const e = document.createElement('a'); e.href = p.edit; e.textContent = '作成アプリで直す ↗'; e.target = '_blank'; e.rel = 'noopener'; links.append(e); }
+      el.append(row, links);
       if (confirming === p.id) {
         btn.hidden = true;
         const c = document.createElement('div'); c.className = 'confirm';

@@ -1,0 +1,1031 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>間取り3Dメーカー</title>
+<style>
+  :root{
+    --bg:#e9edf1; --surface:#ffffff; --surface2:#f5f7f9; --text:#1c232b; --sub:#5a6672; --line:#d3d9df;
+    --accent:#c9721f; --accent-ink:#fff; --accent-soft:#fbeedd; --sel:#1f6feb; --danger:#b83a30;
+    --ok-bg:#e3f3e8; --ok:#23713f; --err-bg:#f9e4e2; --err:#a8342b;
+    color-scheme:light;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --bg:#12171d; --surface:#1b2128; --surface2:#222a32; --text:#e8edf1; --sub:#9aa6b2; --line:#2e3842;
+      --accent:#f0a14a; --accent-ink:#1a1a1a; --accent-soft:#3a2a17; --sel:#5b9cff; --danger:#e0655b;
+      --ok-bg:#1d3a28; --ok:#8fdcaa; --err-bg:#402220; --err:#ff9d94;
+      color-scheme:dark;
+    }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:var(--bg);color:var(--text);font:13px/1.55 system-ui,-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;display:grid;grid-template-rows:auto 1fr;overflow:hidden}
+  button,select,input{font:inherit;color:inherit}
+  button{background:var(--surface2);border:1px solid var(--line);border-radius:8px;padding:6px 10px;cursor:pointer;min-height:32px}
+  button:hover{filter:brightness(.97)}
+  button:disabled{opacity:.45;cursor:default}
+  button.primary{background:var(--accent);color:var(--accent-ink);border-color:transparent;font-weight:700}
+  button.danger{color:var(--danger)}
+  button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  input[type=text],input[type=number],input[type=password],select{background:var(--surface2);border:1px solid var(--line);border-radius:7px;padding:5px 8px;width:100%}
+  [hidden]{display:none!important}
+
+  header{display:flex;align-items:center;gap:10px;padding:8px 12px;padding-top:calc(8px + env(safe-area-inset-top,0px));background:var(--surface);border-bottom:1px solid var(--line);flex-wrap:wrap}
+  header .brand{font-weight:800;font-size:15px;white-space:nowrap}
+  header .brand a{color:var(--sub);text-decoration:none;font-weight:600;font-size:12px;margin-right:6px}
+  header #title{max-width:240px}
+  header .grow{flex:1}
+  header .save{font-size:12px;color:var(--sub);white-space:nowrap}
+
+  .main{display:grid;grid-template-columns:200px 1fr 270px;min-height:0}
+  .rail{background:var(--surface);border-right:1px solid var(--line);overflow:auto;padding:10px;display:grid;gap:4px;align-content:start}
+  .step{font-size:11px;letter-spacing:.06em;color:var(--sub);margin:10px 2px 2px;display:flex;gap:6px;align-items:center}
+  .step b{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--line);color:var(--text);font-size:11px}
+  .step.done b{background:var(--ok);color:#fff}
+  .tool{display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:transparent;border-color:transparent;padding:6px 8px}
+  .tool:hover{background:var(--surface2)}
+  .tool.on{background:var(--accent-soft);border-color:var(--accent);font-weight:700}
+  .tool kbd{margin-left:auto;font-size:10px;color:var(--sub);font-family:inherit}
+  .opt{display:flex;gap:6px;align-items:center;padding:2px 8px;font-size:12px;color:var(--sub)}
+  .opt select{width:auto;padding:2px 6px}
+
+  .stage{position:relative;min-width:0;min-height:0;background:repeating-conic-gradient(var(--surface2) 0 25%, var(--bg) 0 50%) 0 0/24px 24px}
+  #cv{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+  .hint{position:absolute;left:50%;top:10px;transform:translateX(-50%);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:5px 14px;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,.08);max-width:calc(100% - 24px);text-align:center;pointer-events:none}
+  .zoom{position:absolute;right:10px;bottom:10px;display:flex;gap:4px}
+  .zoom button{min-width:34px;background:var(--surface)}
+
+  .side{background:var(--surface);border-left:1px solid var(--line);overflow:auto;padding:12px;display:grid;gap:12px;align-content:start}
+  .side h3{margin:0;font-size:14px}
+  .card{border:1px solid var(--line);border-radius:10px;padding:10px;display:grid;gap:8px}
+  .row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  .row > *{flex:1}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;font-variant-numeric:tabular-nums}
+  .kv dt{color:var(--sub)}
+  .kv dd{margin:0}
+  label.f{display:grid;gap:3px;font-size:12px;color:var(--sub)}
+  .chips{display:flex;flex-wrap:wrap;gap:4px}
+  .chips button{min-height:26px;padding:2px 8px;font-size:12px}
+  .muted{color:var(--sub);font-size:12px}
+  .msg{border-radius:8px;padding:8px 10px;font-size:12px}
+  .msg.ok{background:var(--ok-bg);color:var(--ok)}
+  .msg.err{background:var(--err-bg);color:var(--err)}
+
+  /* 開始画面・ダイアログ */
+  .overlay{position:fixed;inset:0;z-index:30;background:color-mix(in srgb,var(--bg) 92%,transparent);display:grid;place-items:center;padding:16px;overflow:auto}
+  .dialog{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px;width:min(560px,100%);display:grid;gap:14px;box-shadow:0 10px 40px rgba(0,0,0,.18)}
+  .dialog h2{margin:0;font-size:20px}
+  .drop{border:2px dashed var(--line);border-radius:12px;padding:28px 16px;text-align:center;display:grid;gap:8px;cursor:pointer}
+  .drop.over{border-color:var(--accent);background:var(--accent-soft)}
+  .drop b{font-size:15px}
+  .list{display:grid;gap:6px}
+  .list .item{display:flex;gap:8px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:6px 8px}
+  .list .item span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--text);color:var(--surface);padding:7px 14px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:60}
+  #viewer{position:fixed;inset:0;z-index:50}
+
+  @media (max-width:900px){
+    .main{grid-template-columns:1fr;grid-template-rows:auto 1fr auto}
+    .rail{border-right:0;border-bottom:1px solid var(--line);display:flex;overflow-x:auto;gap:4px;padding:6px}
+    .step{display:none}
+    .tool{width:auto;white-space:nowrap}
+    .tool kbd,.opt{display:none}
+    .side{border-left:0;border-top:1px solid var(--line);max-height:38vh}
+  }
+</style>
+</head>
+<body>
+<header>
+  <span class="brand"><a href="./">‹ 一覧</a>間取り3Dメーカー</span>
+  <input type="text" id="title" placeholder="間取りの名前（例：洋8.2帖 1K）" aria-label="間取りの名前">
+  <span class="grow"></span>
+  <span class="save" id="saveState"></span>
+  <button id="undo" title="元に戻す（Ctrl+Z）">↶ 戻す</button>
+  <button id="redo" title="やり直す（Ctrl+Shift+Z）">↷</button>
+  <button id="openMenu">ファイル</button>
+  <button id="publishBtn">サイトに公開</button>
+  <button class="primary" id="view3d">3Dで見る</button>
+</header>
+
+<div class="main">
+  <nav class="rail" id="rail">
+    <button class="tool" data-tool="select">選択・移動<kbd>V</kbd></button>
+    <div class="step" id="st1"><b>1</b>縮尺を合わせる</div>
+    <button class="tool" data-tool="scale">帖数で合わせる<kbd>K</kbd></button>
+    <button class="tool" data-tool="scaleLen">長さで合わせる</button>
+    <div class="step" id="st2"><b>2</b>壁をなぞる</div>
+    <button class="tool" data-tool="wall">壁（線）<kbd>W</kbd></button>
+    <button class="tool" data-tool="wallRect">壁（四角）<kbd>Q</kbd></button>
+    <label class="opt"><input type="checkbox" id="ortho" checked> 水平・垂直にそろえる</label>
+    <label class="opt">厚さ <select id="wallT"><option value="0.1">10cm</option><option value="0.12" selected>12cm</option><option value="0.15">15cm</option><option value="0.18">18cm</option></select></label>
+    <label class="opt">高さ <select id="wallH"><option value="full" selected>天井まで</option><option value="low">腰壁（1.1m）</option></select></label>
+    <div class="step" id="st3"><b>3</b>ドア・窓を置く</div>
+    <button class="tool" data-tool="door">ドア<kbd>D</kbd></button>
+    <button class="tool" data-tool="slide">掃き出し窓<kbd>S</kbd></button>
+    <button class="tool" data-tool="window">窓<kbd>N</kbd></button>
+    <button class="tool" data-tool="opening">開口（扉なし）<kbd>O</kbd></button>
+    <div class="step" id="st4"><b>4</b>部屋を囲む</div>
+    <button class="tool" data-tool="room">部屋<kbd>R</kbd></button>
+    <div class="step" id="st5"><b>5</b>設備・家具</div>
+    <button class="tool" data-tool="item">設備を置く<kbd>F</kbd></button>
+    <label class="opt"><select id="itemType">
+      <option value="kitchen">キッチン</option><option value="tub">浴槽</option><option value="basin">洗面台</option>
+      <option value="toilet">トイレ</option><option value="washer">洗濯機</option><option value="fridge">冷蔵庫</option>
+      <option value="shelf">収納・棚</option><option value="bed">ベッド</option><option value="sofa">ソファ</option>
+      <option value="table">テーブル</option><option value="tv">テレビ台</option><option value="rug">ラグ</option>
+    </select></label>
+    <div class="step" id="st6"><b>6</b>立つ位置</div>
+    <button class="tool" data-tool="start">最初に立つ位置</button>
+  </nav>
+
+  <div class="stage" id="stage">
+    <canvas id="cv"></canvas>
+    <div class="hint" id="hint"></div>
+    <div class="zoom"><button id="zIn" title="拡大">＋</button><button id="zOut" title="縮小">－</button><button id="zFit" title="全体を表示">全体</button></div>
+  </div>
+
+  <aside class="side" id="side"></aside>
+</div>
+
+<!-- 開始画面 -->
+<div class="overlay" id="startScreen" hidden>
+  <div class="dialog">
+    <h2>間取り図から3Dを作る</h2>
+    <p class="muted">図面の画像を読み込み、壁やドアをなぞると、人の目線で歩ける3Dができます。作業中の内容はこのブラウザに自動で保存されます。</p>
+    <label class="drop" id="drop" for="imgFile">
+      <b>図面の画像を選ぶ</b>
+      <span class="muted">ここに画像をドラッグしても読み込めます（PNG・JPEG）</span>
+    </label>
+    <input type="file" id="imgFile" accept="image/*" hidden>
+    <div id="draftsWrap" hidden>
+      <div class="muted" style="margin-bottom:6px">このブラウザに保存されている作業</div>
+      <div class="list" id="drafts"></div>
+    </div>
+    <div class="row"><button id="importBtn">ファイルから読み込む</button></div>
+  </div>
+</div>
+
+<!-- ファイルメニュー -->
+<div class="overlay" id="fileMenu" hidden>
+  <div class="dialog">
+    <h2>ファイル</h2>
+    <div class="list">
+      <button id="exportBtn">ファイルに書き出す（.json）</button>
+      <button id="importBtn2">ファイルから読み込む</button>
+      <button id="replaceImg">図面の画像を差し替える</button>
+      <button id="newBtn">新しい間取りを始める</button>
+    </div>
+    <div class="row"><button id="closeMenu">閉じる</button></div>
+  </div>
+</div>
+<input type="file" id="jsonFile" accept=".json,application/json" hidden>
+<input type="file" id="imgFile2" accept="image/*" hidden>
+
+<!-- 公開ダイアログ -->
+<div class="overlay" id="pubDialog" hidden>
+  <div class="dialog">
+    <h2>サイトに公開</h2>
+    <p class="muted">一覧ページに追加して、誰でも見られるようにします。公開できるのは、サイトの GitHub リポジトリに書き込める管理者だけです。</p>
+    <label class="f">間取りの名前<input type="text" id="pubTitle" placeholder="例：洋8.2帖 1K"></label>
+    <label class="f">ひとこと説明（一覧に表示）<input type="text" id="pubSummary" placeholder="例：南向きバルコニー付きの1K"></label>
+    <div id="pubTokenWrap">
+      <label class="f">アクセストークン（管理者ページと同じもの）<input type="password" id="pubToken" autocomplete="off" placeholder="github_pat_…"></label>
+      <label class="opt" style="padding:4px 0"><input type="checkbox" id="pubRemember"> このブラウザに記憶する</label>
+    </div>
+    <div class="msg" id="pubMsg" hidden></div>
+    <div class="row"><button id="pubCancel">閉じる</button><button class="primary" id="pubGo">公開する</button></div>
+  </div>
+</div>
+
+<div id="viewer" hidden></div>
+<div class="toast" id="toast"></div>
+
+<script src="three.min.js"></script>
+<script src="walk3d.js"></script>
+<script>
+(() => {
+'use strict';
+const OWNER = 'Disk-nsmr', REPO = 'floorplan-3d', BRANCH = 'main';
+const TOKEN_KEY = 'floorplan-admin-token';
+const JO = 1.62;
+const $ = id => document.getElementById(id);
+const cv = $('cv'), ctx = cv.getContext('2d');
+const uid = () => Math.random().toString(36).slice(2, 9);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+const ITEM_NAMES = { kitchen: 'キッチン', tub: '浴槽', basin: '洗面台', toilet: 'トイレ', washer: '洗濯機', fridge: '冷蔵庫', shelf: '収納・棚', bed: 'ベッド', sofa: 'ソファ', table: 'テーブル', tv: 'テレビ台', rug: 'ラグ' };
+const ITEM_SIZE = { kitchen: [2.4, 0.65], tub: [1.2, 0.75], basin: [0.75, 0.55], toilet: [0.45, 0.75], washer: [0.64, 0.64], fridge: [0.65, 0.65], shelf: [0.9, 0.45], bed: [0.97, 1.95], sofa: [1.8, 0.85], table: [1.2, 0.75], tv: [1.5, 0.4], rug: [1.6, 1.6] };
+const KIND_NAMES = { wood: 'フローリング', cf: 'クッションフロア', tatami: '畳', bath: '浴室のタイル', genkan: '玄関の土間（一段低い）', balcony: 'バルコニー（屋外・一段低い）' };
+const KIND_COLOR = { wood: '#d9a05b', cf: '#9fb7c9', tatami: '#a7b46b', bath: '#7fb5d6', genkan: '#9a948a', balcony: '#8fa58a' };
+const ROOM_PRESETS = [['洋室', 'wood'], ['LDK', 'wood'], ['キッチン', 'wood'], ['和室', 'tatami'], ['廊下', 'wood'], ['玄関', 'genkan'], ['浴室', 'bath'], ['洗面室', 'cf'], ['トイレ', 'cf'], ['収納', 'wood'], ['クローゼット', 'wood'], ['バルコニー', 'balcony']];
+const OPEN_NAMES = { door: 'ドア', slide: '掃き出し窓', window: '窓', opening: '開口' };
+const OPEN_W = { door: 0.78, slide: 1.7, window: 1.2, opening: 0.8 };
+
+// ---------------- 状態 ----------------
+let plan = null, img = null;
+let tool = 'select', sel = null, hover = null;
+let view = { s: 1, tx: 0, ty: 0 };
+let draft = null;           // 作図中のもの
+let undoStack = [], redoStack = [];
+
+function blank() {
+  return { version: 1, id: null, draftId: 'd' + Date.now().toString(36), title: '', image: null, imgW: 0, imgH: 0, scale: null, ceiling: 2.4, walls: [], openings: [], rooms: [], items: [], start: null };
+}
+const snapshot = () => JSON.stringify({ ...plan, image: undefined });
+function commit() {
+  undoStack.push(lastSnap); if (undoStack.length > 120) undoStack.shift();
+  redoStack = []; lastSnap = snapshot(); scheduleSave(); refreshUI();
+}
+let lastSnap = '';
+function restore(snap) { const im = plan.image; plan = JSON.parse(snap); plan.image = im; lastSnap = snap; sel = null; scheduleSave(); refreshUI(); }
+$('undo').onclick = () => { if (!undoStack.length) return; redoStack.push(lastSnap); restore(undoStack.pop()); };
+$('redo').onclick = () => { if (!redoStack.length) return; undoStack.push(lastSnap); restore(redoStack.pop()); };
+
+// ---------------- 保存（このブラウザ） ----------------
+const DRAFTS_KEY = 'fp3d-drafts';
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); return true; } catch (e) { return false; } },
+  del(k) { try { localStorage.removeItem(k); } catch (e) {} },
+};
+let saveT = null;
+function scheduleSave() { $('saveState').textContent = '保存しています…'; clearTimeout(saveT); saveT = setTimeout(saveDraft, 700); }
+function saveDraft() {
+  if (!plan) return;
+  const ok = store.set('fp3d-draft-' + plan.draftId, JSON.stringify(plan));
+  const list = JSON.parse(store.get(DRAFTS_KEY) || '[]').filter(d => d.id !== plan.draftId);
+  list.unshift({ id: plan.draftId, title: plan.title || '名前なし', updated: Date.now() });
+  store.set(DRAFTS_KEY, JSON.stringify(list.slice(0, 20)));
+  $('saveState').textContent = ok ? 'このブラウザに保存済み' : '保存できませんでした（容量不足）。「ファイル」から書き出してください';
+}
+
+// ---------------- 画像の読み込み ----------------
+function loadImageFile(file, cb) {
+  if (!file || !file.type.startsWith('image/')) { toast('画像ファイルを選んでください'); return; }
+  const fr = new FileReader();
+  fr.onload = () => {
+    const im = new Image();
+    im.onload = () => {
+      const MAX = 1800, k = Math.min(1, MAX / Math.max(im.width, im.height));
+      const c = document.createElement('canvas'); c.width = Math.round(im.width * k); c.height = Math.round(im.height * k);
+      const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(im, 0, 0, c.width, c.height);
+      cb(c.toDataURL('image/jpeg', 0.9), c.width, c.height, k);
+    };
+    im.onerror = () => toast('画像を読み込めませんでした');
+    im.src = fr.result;
+  };
+  fr.readAsDataURL(file);
+}
+function setImage(dataUrl, then) {
+  img = new Image();
+  img.onload = () => { then && then(); fit(); draw(); };
+  img.src = dataUrl;
+}
+function startNew(dataUrl, w, h) {
+  plan = blank(); plan.image = dataUrl; plan.imgW = w; plan.imgH = h;
+  undoStack = []; redoStack = []; lastSnap = snapshot(); sel = null;
+  $('title').value = '';
+  setImage(dataUrl); hideStart(); setTool('scale'); scheduleSave(); refreshUI();
+}
+function openPlan(p) {
+  plan = Object.assign(blank(), p);
+  if (!plan.draftId) plan.draftId = 'd' + Date.now().toString(36);
+  undoStack = []; redoStack = []; lastSnap = snapshot(); sel = null;
+  $('title').value = plan.title || '';
+  setImage(plan.image); hideStart(); setTool(plan.scale ? 'select' : 'scale'); refreshUI();
+}
+$('imgFile').onchange = e => { loadImageFile(e.target.files[0], startNew); e.target.value = ''; };
+$('imgFile2').onchange = e => {
+  loadImageFile(e.target.files[0], (url, w, h) => {
+    const k = plan.imgW ? w / plan.imgW : 1;
+    if (Math.abs(k - 1) > 0.01) scalePlan(k);
+    plan.image = url; plan.imgW = w; plan.imgH = h; setImage(url); commit(); toast('画像を差し替えました');
+  });
+  e.target.value = '';
+};
+function scalePlan(k) {
+  plan.walls.forEach(w => { w.a = w.a.map(v => v * k); w.b = w.b.map(v => v * k); });
+  plan.rooms.concat(plan.items).forEach(r => { r.x1 *= k; r.y1 *= k; r.x2 *= k; r.y2 *= k; });
+  if (plan.start) { plan.start.x *= k; plan.start.y *= k; }
+  if (plan.scale) plan.scale /= k;
+}
+const drop = $('drop');
+drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('over'); loadImageFile(e.dataTransfer.files[0], startNew); });
+
+// ---------------- 開始画面・ファイル ----------------
+function showStart() {
+  const list = JSON.parse(store.get(DRAFTS_KEY) || '[]');
+  const wrap = $('drafts'); wrap.textContent = '';
+  list.forEach(d => {
+    const row = document.createElement('div'); row.className = 'item';
+    const name = document.createElement('span'); name.textContent = `${d.title}（${new Date(d.updated).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}）`;
+    const open = document.createElement('button'); open.textContent = '続ける';
+    open.onclick = () => { const raw = store.get('fp3d-draft-' + d.id); if (raw) openPlan(JSON.parse(raw)); else toast('保存データが見つかりません'); };
+    const del = document.createElement('button'); del.textContent = '削除'; del.className = 'danger';
+    del.onclick = () => {
+      if (del.dataset.confirm) {
+        store.del('fp3d-draft-' + d.id);
+        store.set(DRAFTS_KEY, JSON.stringify(JSON.parse(store.get(DRAFTS_KEY) || '[]').filter(x => x.id !== d.id)));
+        showStart();
+      } else { del.dataset.confirm = 1; del.textContent = '本当に削除'; }
+    };
+    row.append(name, open, del); wrap.appendChild(row);
+  });
+  $('draftsWrap').hidden = !list.length;
+  $('startScreen').hidden = false;
+}
+function hideStart() { $('startScreen').hidden = true; }
+$('importBtn').onclick = $('importBtn2').onclick = () => $('jsonFile').click();
+$('jsonFile').onchange = e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  const fr = new FileReader();
+  fr.onload = () => {
+    try {
+      const p = JSON.parse(fr.result);
+      if (!p || !Array.isArray(p.walls) || !p.image) throw new Error('bad');
+      p.draftId = 'd' + Date.now().toString(36);
+      openPlan(p); $('fileMenu').hidden = true; toast('読み込みました');
+    } catch (err) { toast('このファイルは読み込めません（間取り3Dメーカーで書き出した .json を選んでください）'); }
+  };
+  fr.readAsText(f);
+};
+$('openMenu').onclick = () => { $('fileMenu').hidden = false; };
+$('closeMenu').onclick = () => { $('fileMenu').hidden = true; };
+$('replaceImg').onclick = () => { $('fileMenu').hidden = true; $('imgFile2').click(); };
+$('newBtn').onclick = () => { $('fileMenu').hidden = true; saveDraft(); history.replaceState(null, '', 'app.html'); showStart(); };
+$('exportBtn').onclick = () => {
+  const blob = new Blob([JSON.stringify(plan)], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = (plan.title || 'madori').replace(/[\\/:*?"<>|]/g, '_') + '.json';
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  $('fileMenu').hidden = true;
+};
+$('title').oninput = e => { plan.title = e.target.value; scheduleSave(); };
+
+// ---------------- 表示（拡大・移動） ----------------
+const toImg = (sx, sy) => [(sx - view.tx) / view.s, (sy - view.ty) / view.s];
+const toScr = (x, y) => [x * view.s + view.tx, y * view.s + view.ty];
+function resize() {
+  const r = cv.getBoundingClientRect(), d = Math.min(devicePixelRatio, 2);
+  cv.width = r.width * d; cv.height = r.height * d; ctx.setTransform(d, 0, 0, d, 0, 0); draw();
+}
+function fit() {
+  if (!plan || !plan.imgW) return;
+  const r = cv.getBoundingClientRect();
+  view.s = Math.min((r.width - 40) / plan.imgW, (r.height - 70) / plan.imgH);
+  view.tx = (r.width - plan.imgW * view.s) / 2; view.ty = (r.height - plan.imgH * view.s) / 2 + 15;
+}
+function zoomAt(sx, sy, k) {
+  const [ix, iy] = toImg(sx, sy);
+  view.s = Math.max(0.1, Math.min(12, view.s * k));
+  view.tx = sx - ix * view.s; view.ty = sy - iy * view.s; draw();
+}
+$('zIn').onclick = () => { const r = cv.getBoundingClientRect(); zoomAt(r.width / 2, r.height / 2, 1.25); };
+$('zOut').onclick = () => { const r = cv.getBoundingClientRect(); zoomAt(r.width / 2, r.height / 2, 0.8); };
+$('zFit').onclick = () => { fit(); draw(); };
+addEventListener('resize', resize);
+
+// ---------------- 幾何 ----------------
+const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+function projOnWall(p, w) {
+  const vx = w.b[0] - w.a[0], vy = w.b[1] - w.a[1], l2 = vx * vx + vy * vy || 1;
+  const t = Math.max(0, Math.min(1, ((p[0] - w.a[0]) * vx + (p[1] - w.a[1]) * vy) / l2));
+  return { t, pt: [w.a[0] + vx * t, w.a[1] + vy * t], d: Math.hypot(p[0] - w.a[0] - vx * t, p[1] - w.a[1] - vy * t), L: Math.sqrt(l2) };
+}
+const wallAt = (p, tolPx) => {
+  let best = null;
+  for (const w of plan.walls) { const pr = projOnWall(p, w); if (pr.d < tolPx && (!best || pr.d < best.d)) best = { w, ...pr }; }
+  return best;
+};
+const tol = () => 10 / view.s;
+function snapPoint(p, from) {
+  // 1) 既存の壁の端点  2) 既存の壁の線上  3) 水平・垂直
+  let best = null, bd = tol();
+  for (const w of plan.walls) for (const q of [w.a, w.b]) { const d = dist(p, q); if (d < bd) { bd = d; best = [...q]; } }
+  if (draft && draft.pts) for (const q of draft.pts) { const d = dist(p, q); if (d < bd && q !== from) { bd = d; best = [...q]; } }
+  if (best) return { p: best, snap: 'end' };
+  let q = [...p];
+  if (from && $('ortho').checked) { if (Math.abs(q[0] - from[0]) > Math.abs(q[1] - from[1])) q[1] = from[1]; else q[0] = from[0]; }
+  const on = wallAt(q, tol() * 0.8);
+  if (on) {
+    if (from && $('ortho').checked) {
+      const horiz = q[1] === from[1];
+      const w = on.w;
+      if (horiz && Math.abs(w.a[0] - w.b[0]) < 1e-6) return { p: [w.a[0], q[1]], snap: 'line' };
+      if (!horiz && Math.abs(w.a[1] - w.b[1]) < 1e-6) return { p: [q[0], w.a[1]], snap: 'line' };
+    } else return { p: on.pt, snap: 'line' };
+  }
+  return { p: q, snap: null };
+}
+const m2px = m => plan.scale ? m / plan.scale : m * 60;
+const px2m = px => plan.scale ? px * plan.scale : null;
+const fmtM = px => plan.scale ? (px * plan.scale).toFixed(2) + 'm' : '—';
+const normRect = r => ({ x1: Math.min(r.x1, r.x2), y1: Math.min(r.y1, r.y2), x2: Math.max(r.x1, r.x2), y2: Math.max(r.y1, r.y2) });
+
+// ---------------- ツール ----------------
+const HINTS = {
+  select: '要素をクリックで選択。壁の端や部屋・設備はドラッグで動かせます。Delete で削除',
+  scale: '広さがわかる部屋（例：洋室8帖）の内側をドラッグで囲み、右側で帖数を入れてください',
+  scaleLen: '長さがわかる線（例：壁の端から端）をドラッグで引き、右側で長さを入れてください',
+  wall: 'クリックで壁の角を順に置きます。ダブルクリック・Enter・右クリックで終了',
+  wallRect: 'ドラッグで四角く囲むと、4本の壁をまとめて置きます',
+  door: '壁の上をドアの幅だけドラッグ（クリックだけなら標準幅）。置いた後に開く向きを変えられます',
+  slide: '壁の上を窓の幅だけドラッグ。バルコニーへ出られる大きな窓です',
+  window: '壁の上を窓の幅だけドラッグ。腰の高さの窓です',
+  opening: '壁の上をドラッグ。扉のない出入り口になります',
+  room: '部屋の内側をドラッグで囲み、右側で名前と床の種類を選びます',
+  item: '置きたい場所をドラッグ（クリックだけなら標準サイズ）。設備の種類は左のリストで選びます',
+  start: '3Dを開いたときに最初に立つ場所をクリック。ドラッグすると向きも決められます',
+};
+function setTool(t) {
+  tool = t; draft = null;
+  document.querySelectorAll('.tool').forEach(b => b.classList.toggle('on', b.dataset.tool === t));
+  if (t !== 'select') sel = null;
+  cv.style.cursor = t === 'select' ? 'default' : 'crosshair';
+  refreshUI();
+}
+document.querySelectorAll('.tool').forEach(b => b.onclick = () => setTool(b.dataset.tool));
+
+// ---------------- 入力 ----------------
+const pointers = new Map();
+let gesture = null, spaceDown = false, panning = null;
+cv.addEventListener('contextmenu', e => e.preventDefault());
+cv.addEventListener('wheel', e => { e.preventDefault(); const r = cv.getBoundingClientRect(); zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-e.deltaY * 0.0015)); }, { passive: false });
+function evPos(e) { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
+
+cv.addEventListener('pointerdown', e => {
+  if (!plan) return;
+  try { cv.setPointerCapture(e.pointerId); } catch (err) {}
+  pointers.set(e.pointerId, evPos(e));
+  if (pointers.size === 2) {  // 2本指：拡大・移動
+    const [a, b] = [...pointers.values()];
+    gesture = { d: dist(a, b), c: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2] }; draft = null; panning = null; draw(); return;
+  }
+  const s = evPos(e);
+  if (e.button === 1 || e.button === 2 && tool !== 'wall' || spaceDown) { panning = { s, tx: view.tx, ty: view.ty }; return; }
+  if (e.button === 2 && tool === 'wall') { finishWall(); return; }
+  down(toImg(...s), e);
+});
+cv.addEventListener('pointermove', e => {
+  if (!plan) return;
+  const s = evPos(e);
+  if (pointers.has(e.pointerId)) pointers.set(e.pointerId, s);
+  if (gesture && pointers.size === 2) {
+    const [a, b] = [...pointers.values()], d = dist(a, b), c = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    view.tx += c[0] - gesture.c[0]; view.ty += c[1] - gesture.c[1];
+    zoomAt(c[0], c[1], d / gesture.d); gesture = { d, c }; return;
+  }
+  if (panning) { view.tx = panning.tx + s[0] - panning.s[0]; view.ty = panning.ty + s[1] - panning.s[1]; draw(); return; }
+  move(toImg(...s), e);
+});
+const endPtr = e => {
+  pointers.delete(e.pointerId);
+  if (gesture) { if (pointers.size < 2) gesture = null; return; }
+  if (panning) { panning = null; return; }
+  if (plan) up(toImg(...evPos(e)), e);
+};
+cv.addEventListener('pointerup', endPtr);
+cv.addEventListener('pointercancel', e => { pointers.delete(e.pointerId); gesture = null; panning = null; draft = null; draw(); });
+cv.addEventListener('dblclick', () => { if (tool === 'wall') finishWall(); });
+addEventListener('keydown', e => {
+  if (/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
+  if (!$('viewer').hidden || !plan) return;
+  const k = e.key.toLowerCase();
+  if ((e.ctrlKey || e.metaKey) && k === 'z') { e.preventDefault(); (e.shiftKey ? $('redo') : $('undo')).click(); return; }
+  if (e.code === 'Space') { spaceDown = true; e.preventDefault(); return; }
+  if (k === 'escape' || k === 'enter') { if (tool === 'wall' && draft) finishWall(); else { draft = null; sel = null; refreshUI(); } return; }
+  if ((k === 'delete' || k === 'backspace') && sel) { e.preventDefault(); removeSel(); return; }
+  const map = { v: 'select', k: 'scale', w: 'wall', q: 'wallRect', d: 'door', s: 'slide', n: 'window', o: 'opening', r: 'room', f: 'item' };
+  if (map[k] && !e.ctrlKey && !e.metaKey) setTool(map[k]);
+});
+addEventListener('keyup', e => { if (e.code === 'Space') spaceDown = false; });
+
+function down(p, e) {
+  if (tool === 'select') {
+    const hit = pick(p);
+    sel = hit; draft = null;
+    if (hit && hit.type === 'wallEnd') {
+      draft = { mode: 'moveEnd', at: [...hit.pt], moved: false };
+      sel = { type: 'wall', id: hit.id };
+    } else if (hit && (hit.type === 'room' || hit.type === 'item' || hit.type === 'start')) {
+      draft = { mode: 'moveObj', from: p, moved: false };
+    }
+    refreshUI(); return;
+  }
+  if (tool === 'wall') {
+    const from = draft && draft.pts ? draft.pts[draft.pts.length - 1] : null;
+    const { p: q } = snapPoint(p, from);
+    if (!draft) draft = { pts: [q] };
+    else if (dist(q, from) > 2) {
+      plan.walls.push({ id: uid(), a: [...from], b: [...q], t: +$('wallT').value, h: $('wallH').value });
+      draft.pts.push(q); commit();
+      if (draft.pts.length > 2 && dist(q, draft.pts[0]) < 1) finishWall();
+    }
+    draw(); return;
+  }
+  if (['door', 'slide', 'window', 'opening'].includes(tool)) {
+    const on = wallAt(p, tol() * 1.4);
+    if (!on) { toast('壁の上で操作してください'); return; }
+    draft = { wall: on.w, t0: on.t, t1: on.t, L: on.L }; draw(); return;
+  }
+  if (tool === 'start') { draft = { start: p, end: p }; draw(); return; }
+  const s0 = ['wallRect'].includes(tool) ? snapPoint(p).p : p;
+  draft = { rect: { x1: s0[0], y1: s0[1], x2: s0[0], y2: s0[1] }, line: tool === 'scaleLen' ? [s0, s0] : null };
+  draw();
+}
+function move(p, e) {
+  if (tool === 'select' && draft) {
+    if (draft.mode === 'moveEnd') {
+      const { p: q } = snapPoint(p);
+      const at = draft.at;
+      for (const w of plan.walls) { if (dist(w.a, at) < 0.5) w.a = [...q]; if (dist(w.b, at) < 0.5) w.b = [...q]; }
+      draft.at = [...q]; draft.moved = true; draw(); return;
+    }
+    if (draft.mode === 'moveObj' && sel) {
+      const dx = p[0] - draft.from[0], dy = p[1] - draft.from[1];
+      const o = sel.type === 'start' ? null : (sel.type === 'room' ? plan.rooms : plan.items).find(x => x.id === sel.id);
+      if (o) { o.x1 += dx; o.x2 += dx; o.y1 += dy; o.y2 += dy; }
+      else if (sel.type === 'start') { plan.start.x += dx; plan.start.y += dy; }
+      draft.from = p; draft.moved = true; draw(); return;
+    }
+  }
+  if (tool === 'select') { const h = pick(p); hover = h; cv.style.cursor = h ? (h.type === 'wallEnd' ? 'move' : 'pointer') : 'default'; draw(); return; }
+  if (tool === 'wall') { hover = snapPoint(p, draft && draft.pts ? draft.pts[draft.pts.length - 1] : null); draw(); return; }
+  if (['door', 'slide', 'window', 'opening'].includes(tool)) {
+    if (draft) { draft.t1 = projOnWall(p, draft.wall).t; }
+    else hover = wallAt(p, tol() * 1.4);
+    draw(); return;
+  }
+  if (tool === 'start' && draft) { draft.end = p; draw(); return; }
+  if (draft && draft.rect) {
+    const q = tool === 'wallRect' ? snapPoint(p).p : p;
+    draft.rect.x2 = q[0]; draft.rect.y2 = q[1];
+    if (draft.line) draft.line[1] = q;
+    draw(); return;
+  }
+  hover = null; draw();
+}
+function up(p) {
+  if (tool === 'select') {
+    if (draft && draft.moved) {
+      if (draft.mode === 'moveEnd') plan.walls = plan.walls.filter(w => dist(w.a, w.b) > 1);
+      commit();
+    }
+    draft = null; draw(); return;
+  }
+  if (tool === 'wall') return;
+  if (['door', 'slide', 'window', 'opening'].includes(tool) && draft) {
+    const w = draft.wall, L = draft.L;
+    let t0 = Math.min(draft.t0, draft.t1), t1 = Math.max(draft.t0, draft.t1);
+    if ((t1 - t0) * L < m2px(0.3)) {
+      const half = m2px(OPEN_W[tool]) / 2 / L, c = draft.t0;
+      t0 = Math.max(0, c - half); t1 = Math.min(1, c + half);
+    }
+    const clash = plan.openings.some(o => o.wall === w.id && Math.max(o.s, o.e) > t0 && Math.min(o.s, o.e) < t1);
+    draft = null;
+    if (clash) { toast('ほかのドア・窓と重なっています'); draw(); return; }
+    const o = { id: uid(), wall: w.id, s: t0, e: t1, type: tool };
+    if (tool === 'door') { o.hinge = 's'; o.side = 1; }
+    if (tool === 'window') { o.sill = 0.9; o.head = 2.0; }
+    plan.openings.push(o); sel = { type: 'opening', id: o.id }; commit(); return;
+  }
+  if (tool === 'start' && draft) {
+    const yaw = dist(draft.start, draft.end) > 8 ? Math.atan2(-(draft.end[0] - draft.start[0]), -(draft.end[1] - draft.start[1])) : (plan.start ? plan.start.yaw : 0);
+    plan.start = { x: draft.start[0], y: draft.start[1], yaw }; draft = null; commit(); return;
+  }
+  if (!draft || !draft.rect) return;
+  const r = normRect(draft.rect), w = r.x2 - r.x1, h = r.y2 - r.y1;
+  if (tool === 'scaleLen') {
+    const len = dist(draft.line[0], draft.line[1]);
+    if (len < 10) { draft = null; draw(); return; }
+    draft = { line: draft.line, pendingScale: 'len', len }; refreshUI(); setTimeout(() => $('scaleIn') && $('scaleIn').focus(), 0); return;
+  }
+  if (tool === 'scale') {
+    if (w < 10 || h < 10) { draft = null; draw(); return; }
+    draft = { rect: r, pendingScale: 'jo' }; refreshUI(); setTimeout(() => $('scaleIn') && $('scaleIn').focus(), 0); return;
+  }
+  if (tool === 'wallRect') {
+    if (w < 6 || h < 6) { draft = null; draw(); return; }
+    const t = +$('wallT').value, hh = $('wallH').value;
+    const c = [[r.x1, r.y1], [r.x2, r.y1], [r.x2, r.y2], [r.x1, r.y2]];
+    for (let i = 0; i < 4; i++) plan.walls.push({ id: uid(), a: [...c[i]], b: [...c[(i + 1) % 4]], t, h: hh });
+    draft = null; commit(); return;
+  }
+  if (tool === 'room') {
+    if (w < 8 || h < 8) { draft = null; draw(); toast('部屋はドラッグで囲んでください'); return; }
+    const o = { id: uid(), name: '部屋', kind: 'wood', ...r };
+    plan.rooms.push(o); sel = { type: 'room', id: o.id }; draft = null; commit();
+    setTimeout(() => $('roomName') && $('roomName').select(), 0); return;
+  }
+  if (tool === 'item') {
+    const type = $('itemType').value;
+    let o;
+    if (w < 6 && h < 6) {
+      const [sw, sd] = ITEM_SIZE[type].map(m2px);
+      o = { id: uid(), type, x1: r.x1 - sw / 2, y1: r.y1 - sd / 2, x2: r.x1 + sw / 2, y2: r.y1 + sd / 2, rot: 0 };
+    } else o = { id: uid(), type, ...r, rot: 0 };
+    plan.items.push(o); sel = { type: 'item', id: o.id }; draft = null; commit(); return;
+  }
+}
+function finishWall() { draft = null; draw(); }
+
+function pick(p) {
+  const t = tol();
+  for (const w of plan.walls) for (const end of [w.a, w.b]) if (dist(p, end) < t * 0.8) return { type: 'wallEnd', id: w.id, pt: end };
+  for (const o of plan.openings) {
+    const w = plan.walls.find(x => x.id === o.wall); if (!w) continue;
+    const pr = projOnWall(p, w);
+    if (pr.d < t * 1.2 && pr.t >= Math.min(o.s, o.e) - 0.01 && pr.t <= Math.max(o.s, o.e) + 0.01) return { type: 'opening', id: o.id };
+  }
+  if (plan.start && dist(p, [plan.start.x, plan.start.y]) < t * 1.5) return { type: 'start' };
+  for (const it of [...plan.items].reverse()) { const r = normRect(it); if (p[0] >= r.x1 && p[0] <= r.x2 && p[1] >= r.y1 && p[1] <= r.y2) return { type: 'item', id: it.id }; }
+  const w = wallAt(p, t); if (w) return { type: 'wall', id: w.w.id };
+  const rooms = plan.rooms.map(r => ({ r, n: normRect(r) })).filter(({ n }) => p[0] >= n.x1 && p[0] <= n.x2 && p[1] >= n.y1 && p[1] <= n.y2)
+    .sort((a, b) => (a.n.x2 - a.n.x1) * (a.n.y2 - a.n.y1) - (b.n.x2 - b.n.x1) * (b.n.y2 - b.n.y1));
+  if (rooms.length) return { type: 'room', id: rooms[0].r.id };
+  return null;
+}
+function removeSel() {
+  if (!sel) return;
+  if (sel.type === 'wall') { plan.walls = plan.walls.filter(w => w.id !== sel.id); plan.openings = plan.openings.filter(o => o.wall !== sel.id); }
+  if (sel.type === 'opening') plan.openings = plan.openings.filter(o => o.id !== sel.id);
+  if (sel.type === 'room') plan.rooms = plan.rooms.filter(o => o.id !== sel.id);
+  if (sel.type === 'item') plan.items = plan.items.filter(o => o.id !== sel.id);
+  if (sel.type === 'start') plan.start = null;
+  sel = null; commit();
+}
+
+// ---------------- 描画 ----------------
+function draw() {
+  const r = cv.getBoundingClientRect();
+  ctx.clearRect(0, 0, r.width, r.height);
+  if (!plan) return;
+  ctx.save(); ctx.translate(view.tx, view.ty); ctx.scale(view.s, view.s);
+  if (img && img.complete) { ctx.globalAlpha = 0.92; ctx.drawImage(img, 0, 0, plan.imgW, plan.imgH); ctx.globalAlpha = 1; }
+  const lw = px => px / view.s;
+  const isSel = (type, id) => sel && sel.type === type && sel.id === id;
+  // 部屋
+  for (const rm of plan.rooms) {
+    const n = normRect(rm), c = KIND_COLOR[rm.kind] || KIND_COLOR.wood;
+    ctx.fillStyle = c + (isSel('room', rm.id) ? '66' : '33'); ctx.fillRect(n.x1, n.y1, n.x2 - n.x1, n.y2 - n.y1);
+    ctx.strokeStyle = isSel('room', rm.id) ? '#1f6feb' : c; ctx.lineWidth = lw(isSel('room', rm.id) ? 2.5 : 1.5);
+    ctx.setLineDash([lw(6), lw(4)]); ctx.strokeRect(n.x1, n.y1, n.x2 - n.x1, n.y2 - n.y1); ctx.setLineDash([]);
+    const label = rm.name + (rm.jo ? ` ${rm.jo}帖` : '');
+    ctx.font = `700 ${lw(13)}px system-ui,"Hiragino Sans",sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const tw = ctx.measureText(label).width + lw(12);
+    ctx.fillStyle = 'rgba(255,255,255,.88)'; ctx.fillRect((n.x1 + n.x2) / 2 - tw / 2, (n.y1 + n.y2) / 2 - lw(10), tw, lw(20));
+    ctx.fillStyle = '#1c232b'; ctx.fillText(label, (n.x1 + n.x2) / 2, (n.y1 + n.y2) / 2);
+  }
+  // 設備
+  for (const it of plan.items) {
+    const n = normRect(it), s = isSel('item', it.id);
+    ctx.fillStyle = s ? 'rgba(31,111,235,.25)' : 'rgba(240,161,74,.28)'; ctx.fillRect(n.x1, n.y1, n.x2 - n.x1, n.y2 - n.y1);
+    ctx.strokeStyle = s ? '#1f6feb' : '#c9721f'; ctx.lineWidth = lw(s ? 2.5 : 1.5); ctx.strokeRect(n.x1, n.y1, n.x2 - n.x1, n.y2 - n.y1);
+    const k = ((it.rot || 0) % 4 + 4) % 4; ctx.lineWidth = lw(4); ctx.beginPath();
+    if (k === 0) { ctx.moveTo(n.x1, n.y1); ctx.lineTo(n.x2, n.y1); } else if (k === 1) { ctx.moveTo(n.x2, n.y1); ctx.lineTo(n.x2, n.y2); }
+    else if (k === 2) { ctx.moveTo(n.x1, n.y2); ctx.lineTo(n.x2, n.y2); } else { ctx.moveTo(n.x1, n.y1); ctx.lineTo(n.x1, n.y2); }
+    ctx.stroke();
+    ctx.font = `600 ${lw(11)}px system-ui,"Hiragino Sans",sans-serif`; ctx.fillStyle = '#7a3f0a'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(ITEM_NAMES[it.type] || it.type, (n.x1 + n.x2) / 2, (n.y1 + n.y2) / 2);
+  }
+  // 壁
+  for (const w of plan.walls) {
+    const s = isSel('wall', w.id) || (hover && hover.type === 'wall' && hover.id === w.id && tool === 'select');
+    ctx.strokeStyle = s ? '#1f6feb' : (w.h === 'low' ? '#5f6b76' : '#2b3138');
+    ctx.lineWidth = Math.max(lw(3), w.t ? m2px(w.t) : lw(6)); ctx.lineCap = 'butt';
+    if (w.h === 'low') ctx.setLineDash([lw(8), lw(4)]);
+    ctx.beginPath(); ctx.moveTo(...w.a); ctx.lineTo(...w.b); ctx.stroke(); ctx.setLineDash([]);
+  }
+  for (const w of plan.walls) for (const e of [w.a, w.b]) { ctx.fillStyle = '#fff'; ctx.strokeStyle = '#2b3138'; ctx.lineWidth = lw(1.2); ctx.beginPath(); ctx.arc(e[0], e[1], lw(3.2), 0, 7); ctx.fill(); ctx.stroke(); }
+  // 開口
+  for (const o of plan.openings) {
+    const w = plan.walls.find(x => x.id === o.wall); if (!w) continue;
+    const P = t => [w.a[0] + (w.b[0] - w.a[0]) * t, w.a[1] + (w.b[1] - w.a[1]) * t];
+    const p0 = P(Math.min(o.s, o.e)), p1 = P(Math.max(o.s, o.e)), s = isSel('opening', o.id);
+    const th = Math.max(lw(3), w.t ? m2px(w.t) : lw(6)) + lw(2);
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = th; ctx.beginPath(); ctx.moveTo(...p0); ctx.lineTo(...p1); ctx.stroke();
+    const color = s ? '#1f6feb' : { door: '#c9721f', slide: '#2a7fbf', window: '#55a7d9', opening: '#8a96a2' }[o.type];
+    ctx.strokeStyle = color; ctx.lineWidth = lw(2.5);
+    if (o.type === 'door') {
+      const L = dist(p0, p1), dx = (p1[0] - p0[0]) / L, dy = (p1[1] - p0[1]) / L, nx = -dy * (o.side === -1 ? -1 : 1), ny = dx * (o.side === -1 ? -1 : 1);
+      const h = o.hinge === 'e' ? p1 : p0, other = o.hinge === 'e' ? p0 : p1;
+      const tip = [h[0] + nx * L, h[1] + ny * L];
+      ctx.beginPath(); ctx.moveTo(...h); ctx.lineTo(...tip); ctx.stroke();
+      const a0 = Math.atan2(other[1] - h[1], other[0] - h[0]), a1 = Math.atan2(tip[1] - h[1], tip[0] - h[0]);
+      let d = a1 - a0; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
+      ctx.setLineDash([lw(4), lw(3)]); ctx.beginPath(); ctx.arc(h[0], h[1], L, a0, a1, d < 0); ctx.stroke(); ctx.setLineDash([]);
+    } else if (o.type === 'slide') {
+      const L = dist(p0, p1), nx = -(p1[1] - p0[1]) / L, ny = (p1[0] - p0[0]) / L, off = lw(2.5);
+      const m = P((o.s + o.e) / 2);
+      ctx.beginPath(); ctx.moveTo(p0[0] - nx * off, p0[1] - ny * off); ctx.lineTo(m[0] - nx * off + (p1[0] - p0[0]) * 0.05, m[1] - ny * off + (p1[1] - p0[1]) * 0.05); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(m[0] + nx * off - (p1[0] - p0[0]) * 0.05, m[1] + ny * off - (p1[1] - p0[1]) * 0.05); ctx.lineTo(p1[0] + nx * off, p1[1] + ny * off); ctx.stroke();
+    } else if (o.type === 'window') {
+      ctx.lineWidth = lw(4); ctx.beginPath(); ctx.moveTo(...p0); ctx.lineTo(...p1); ctx.stroke();
+    } else { ctx.setLineDash([lw(5), lw(4)]); ctx.beginPath(); ctx.moveTo(...p0); ctx.lineTo(...p1); ctx.stroke(); ctx.setLineDash([]); }
+  }
+  // 開始位置
+  if (plan.start) {
+    const { x, y, yaw } = plan.start, fx = -Math.sin(yaw), fy = -Math.cos(yaw), s = sel && sel.type === 'start';
+    ctx.fillStyle = s ? '#1f6feb' : '#f08a3a'; ctx.strokeStyle = '#fff'; ctx.lineWidth = lw(2);
+    ctx.beginPath(); ctx.arc(x, y, lw(7), 0, 7); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x + fx * lw(22), y + fy * lw(22)); ctx.lineTo(x - fy * lw(7), y + fx * lw(7)); ctx.lineTo(x + fy * lw(7), y - fx * lw(7)); ctx.closePath(); ctx.fill();
+  }
+  // 作図中
+  ctx.strokeStyle = '#1f6feb'; ctx.fillStyle = 'rgba(31,111,235,.12)'; ctx.lineWidth = lw(2);
+  if (tool === 'wall' && draft && draft.pts) {
+    ctx.beginPath(); ctx.moveTo(...draft.pts[0]); draft.pts.forEach(p => ctx.lineTo(...p));
+    if (hover) ctx.lineTo(...hover.p); ctx.stroke();
+    if (hover) { const last = draft.pts[draft.pts.length - 1]; label(hover.p, fmtM(dist(last, hover.p))); }
+  }
+  if (tool === 'wall' && hover) { ctx.fillStyle = hover.snap ? '#1f6feb' : 'rgba(31,111,235,.5)'; ctx.beginPath(); ctx.arc(hover.p[0], hover.p[1], lw(hover.snap ? 5 : 3.5), 0, 7); ctx.fill(); }
+  if (draft && draft.rect && !draft.line) {
+    const n = normRect(draft.rect); ctx.fillStyle = 'rgba(31,111,235,.12)';
+    ctx.fillRect(n.x1, n.y1, n.x2 - n.x1, n.y2 - n.y1); ctx.strokeRect(n.x1, n.y1, n.x2 - n.x1, n.y2 - n.y1);
+    if (plan.scale && !draft.pendingScale) label([n.x2, n.y2], `${fmtM(n.x2 - n.x1)} × ${fmtM(n.y2 - n.y1)}`);
+  }
+  if (draft && draft.line) { ctx.beginPath(); ctx.moveTo(...draft.line[0]); ctx.lineTo(...draft.line[1]); ctx.stroke(); }
+  if (draft && draft.wall) {
+    const w = draft.wall, P = t => [w.a[0] + (w.b[0] - w.a[0]) * t, w.a[1] + (w.b[1] - w.a[1]) * t];
+    ctx.lineWidth = lw(6); ctx.strokeStyle = 'rgba(31,111,235,.7)'; ctx.beginPath(); ctx.moveTo(...P(draft.t0)); ctx.lineTo(...P(draft.t1)); ctx.stroke();
+    label(P(draft.t1), fmtM(Math.abs(draft.t1 - draft.t0) * draft.L));
+  } else if (hover && hover.w && ['door', 'slide', 'window', 'opening'].includes(tool)) {
+    ctx.lineWidth = lw(8); ctx.strokeStyle = 'rgba(31,111,235,.35)'; ctx.beginPath(); ctx.moveTo(...hover.w.a); ctx.lineTo(...hover.w.b); ctx.stroke();
+  }
+  if (tool === 'start' && draft) {
+    ctx.beginPath(); ctx.arc(draft.start[0], draft.start[1], lw(7), 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(...draft.start); ctx.lineTo(...draft.end); ctx.stroke();
+  }
+  ctx.restore();
+  function label(p, text) {
+    if (!text || text === '—') return;
+    ctx.font = `600 ${lw(12)}px system-ui,sans-serif`; const tw = ctx.measureText(text).width + lw(10);
+    ctx.fillStyle = '#1f6feb'; ctx.fillRect(p[0] + lw(8), p[1] + lw(8), tw, lw(18));
+    ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(text, p[0] + lw(13), p[1] + lw(17));
+  }
+}
+
+// ---------------- 右パネル ----------------
+function el(tag, attrs = {}, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) { if (k === 'on') Object.entries(v).forEach(([t, f]) => e.addEventListener(t, f)); else if (k === 'text') e.textContent = v; else e.setAttribute(k, v); }
+  kids.flat().forEach(k => k != null && e.append(k));
+  return e;
+}
+function refreshUI() {
+  if (!plan) return;
+  $('hint').textContent = draft && draft.pendingScale ? '右側に数値を入れて「合わせる」を押してください' : HINTS[tool];
+  $('undo').disabled = !undoStack.length; $('redo').disabled = !redoStack.length;
+  $('st1').classList.toggle('done', !!plan.scale);
+  $('st2').classList.toggle('done', plan.walls.length > 0);
+  $('st3').classList.toggle('done', plan.openings.length > 0);
+  $('st4').classList.toggle('done', plan.rooms.length > 0);
+  $('st5').classList.toggle('done', plan.items.length > 0);
+  $('st6').classList.toggle('done', !!plan.start);
+  const side = $('side'); side.textContent = '';
+  if (draft && draft.pendingScale) side.append(scaleCard());
+  else if (sel) side.append(selCard());
+  else side.append(summaryCard());
+  draw();
+}
+function scaleCard() {
+  const isJo = draft.pendingScale === 'jo';
+  const input = el('input', { type: 'number', id: 'scaleIn', min: '0.1', step: isJo ? '0.1' : '0.01', placeholder: isJo ? '例：8.2' : '例：3.64' });
+  const apply = () => {
+    const v = parseFloat(input.value);
+    if (!(v > 0)) { toast(isJo ? '帖数を入れてください' : '長さを入れてください'); return; }
+    if (isJo) { const r = draft.rect; plan.scale = Math.sqrt(v * JO / ((r.x2 - r.x1) * (r.y2 - r.y1))); }
+    else plan.scale = v / draft.len;
+    if (isJo && !plan.rooms.length) plan.rooms.push({ id: uid(), name: '洋室', kind: 'wood', jo: v, ...draft.rect });
+    draft = null; commit(); setTool('wall'); toast('縮尺を合わせました。次は壁をなぞります');
+  };
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') apply(); });
+  return el('div', { class: 'card' },
+    el('h3', { text: isJo ? 'この部屋は何帖？' : 'この線の長さは？' }),
+    el('p', { class: 'muted', text: isJo ? '図面に書かれている帖数を入れてください（1帖＝1.62㎡で計算）。囲んだ部屋は「洋室」として登録します。' : 'メートルで入れてください（例：3.64）' }),
+    el('label', { class: 'f' }, isJo ? '帖数' : '長さ（m）', input),
+    el('div', { class: 'row' }, el('button', { text: 'やめる', on: { click: () => { draft = null; refreshUI(); } } }), el('button', { class: 'primary', text: '合わせる', on: { click: apply } })));
+}
+function summaryCard() {
+  const scaleTxt = plan.scale ? `1m ＝ 図面上 ${(1 / plan.scale).toFixed(1)} px` : '未設定';
+  const ceil = el('input', { type: 'number', min: '2', max: '4', step: '0.05', value: plan.ceiling });
+  ceil.addEventListener('change', () => { const v = parseFloat(ceil.value); if (v >= 2 && v <= 4) { plan.ceiling = v; commit(); } });
+  const next = !plan.scale ? '① 縮尺を合わせましょう。広さのわかる部屋を「帖数で合わせる」で囲みます。'
+    : !plan.walls.length ? '② 壁をなぞりましょう。「壁（四角）」で部屋ごとに囲むと早いです。'
+    : !plan.openings.length ? '③ ドアや窓を壁の上に置きましょう。'
+    : !plan.rooms.length ? '④ 部屋を囲んで名前を付けましょう。床の種類や玄関の段差が決まります。'
+    : '準備ができたら「3Dで見る」で歩いてみてください。';
+  return el('div', {},
+    el('div', { class: 'card' }, el('h3', { text: '次にすること' }), el('p', { class: 'muted', text: next })),
+    el('div', { class: 'card', style: 'margin-top:12px' }, el('h3', { text: 'この間取り' }),
+      el('dl', { class: 'kv' },
+        el('dt', { text: '縮尺' }), el('dd', { text: scaleTxt }),
+        el('dt', { text: '壁' }), el('dd', { text: plan.walls.length + ' 本' }),
+        el('dt', { text: 'ドア・窓' }), el('dd', { text: plan.openings.length + ' か所' }),
+        el('dt', { text: '部屋' }), el('dd', { text: plan.rooms.length + ' 室' }),
+        el('dt', { text: '設備' }), el('dd', { text: plan.items.length + ' 点' })),
+      el('label', { class: 'f' }, '天井の高さ（m）', ceil)),
+    el('div', { class: 'card', style: 'margin-top:12px' }, el('h3', { text: '操作のコツ' }),
+      el('p', { class: 'muted', text: 'ホイールで拡大・縮小、右ドラッグ（またはスペース＋ドラッグ）で画面を動かせます。スマホは2本指で操作します。Ctrl+Z で元に戻せます。' })));
+}
+function selCard() {
+  const card = el('div', { class: 'card' });
+  const del = el('button', { class: 'danger', text: '削除する', on: { click: removeSel } });
+  if (sel.type === 'wall') {
+    const w = plan.walls.find(x => x.id === sel.id); if (!w) { sel = null; return summaryCard(); }
+    const t = el('select', {}, ...[0.1, 0.12, 0.15, 0.18].map(v => el('option', { value: v, text: v * 100 + 'cm' })));
+    t.value = String(w.t || 0.12); t.onchange = () => { w.t = +t.value; commit(); };
+    const h = el('select', {}, el('option', { value: 'full', text: '天井まで' }), el('option', { value: 'low', text: '腰壁（1.1m）' }));
+    h.value = w.h || 'full'; h.onchange = () => { w.h = h.value; commit(); };
+    card.append(el('h3', { text: '壁' }), el('dl', { class: 'kv' }, el('dt', { text: '長さ' }), el('dd', { text: fmtM(dist(w.a, w.b)) })),
+      el('label', { class: 'f' }, '厚さ', t), el('label', { class: 'f' }, '高さ', h),
+      el('p', { class: 'muted', text: '端の点をドラッグすると、つながっている壁ごと動かせます。' }), del);
+  } else if (sel.type === 'opening') {
+    const o = plan.openings.find(x => x.id === sel.id); if (!o) { sel = null; return summaryCard(); }
+    const w = plan.walls.find(x => x.id === o.wall);
+    const type = el('select', {}, ...Object.entries(OPEN_NAMES).map(([v, n]) => el('option', { value: v, text: n })));
+    type.value = o.type;
+    type.onchange = () => { o.type = type.value; if (o.type === 'door') { o.hinge = o.hinge || 's'; o.side = o.side || 1; } if (o.type === 'window') { o.sill = o.sill ?? 0.9; o.head = o.head ?? 2.0; } commit(); };
+    card.append(el('h3', { text: OPEN_NAMES[o.type] }), el('dl', { class: 'kv' }, el('dt', { text: '幅' }), el('dd', { text: w ? fmtM(Math.abs(o.e - o.s) * dist(w.a, w.b)) : '—' })),
+      el('label', { class: 'f' }, '種類', type));
+    if (o.type === 'door') {
+      const entry = el('input', { type: 'checkbox' }); entry.checked = !!o.entry; entry.onchange = () => { o.entry = entry.checked; o.label = entry.checked ? '玄関ドア' : undefined; commit(); };
+      card.append(el('div', { class: 'row' },
+        el('button', { text: '吊元を反対に', on: { click: () => { o.hinge = o.hinge === 'e' ? 's' : 'e'; commit(); } } }),
+        el('button', { text: '開く側を反対に', on: { click: () => { o.side = o.side === -1 ? 1 : -1; commit(); } } })),
+        el('label', { class: 'opt', style: 'padding:0' }, entry, '玄関ドア（金属の扉）'));
+    }
+    if (o.type === 'window') {
+      const sill = el('input', { type: 'number', step: '0.05', min: '0', max: '2', value: o.sill ?? 0.9 });
+      const head = el('input', { type: 'number', step: '0.05', min: '0.3', max: '2.4', value: o.head ?? 2.0 });
+      sill.onchange = () => { o.sill = Math.max(0, +sill.value); commit(); };
+      head.onchange = () => { o.head = Math.max(o.sill + 0.2, +head.value); commit(); };
+      card.append(el('div', { class: 'row' }, el('label', { class: 'f' }, '窓の下端（m）', sill), el('label', { class: 'f' }, '窓の上端（m）', head)));
+    }
+    card.append(del);
+  } else if (sel.type === 'room') {
+    const r = plan.rooms.find(x => x.id === sel.id); if (!r) { sel = null; return summaryCard(); }
+    const n = normRect(r);
+    const name = el('input', { type: 'text', id: 'roomName', value: r.name || '' });
+    name.oninput = () => { r.name = name.value; draw(); }; name.onchange = () => commit();
+    const kind = el('select', {}, ...Object.entries(KIND_NAMES).map(([v, t]) => el('option', { value: v, text: t })));
+    kind.value = r.kind || 'wood'; kind.onchange = () => { r.kind = kind.value; commit(); };
+    const jo = el('input', { type: 'number', step: '0.1', min: '0', value: r.jo ?? '', placeholder: '図面の帖数（任意）' });
+    jo.onchange = () => { const v = parseFloat(jo.value); r.jo = v > 0 ? v : undefined; commit(); };
+    const area = plan.scale ? (n.x2 - n.x1) * (n.y2 - n.y1) * plan.scale * plan.scale : null;
+    card.append(el('h3', { text: '部屋' }),
+      el('div', { class: 'chips' }, ...ROOM_PRESETS.map(([nm, k]) => el('button', { text: nm, on: { click: () => { r.name = nm; r.kind = k; commit(); } } }))),
+      el('label', { class: 'f' }, '名前', name), el('label', { class: 'f' }, '床の種類', kind), el('label', { class: 'f' }, '帖数（表示用）', jo),
+      el('dl', { class: 'kv' }, el('dt', { text: '大きさ' }), el('dd', { text: `${fmtM(n.x2 - n.x1)} × ${fmtM(n.y2 - n.y1)}` }),
+        el('dt', { text: '面積' }), el('dd', { text: area ? `${area.toFixed(1)}㎡（約${(area / JO).toFixed(1)}帖）` : '—' })),
+      el('p', { class: 'muted', text: 'ドラッグで位置を動かせます。' }), del);
+  } else if (sel.type === 'item') {
+    const it = plan.items.find(x => x.id === sel.id); if (!it) { sel = null; return summaryCard(); }
+    const n = normRect(it);
+    const type = el('select', {}, ...Object.entries(ITEM_NAMES).map(([v, t]) => el('option', { value: v, text: t })));
+    type.value = it.type; type.onchange = () => { it.type = type.value; commit(); };
+    card.append(el('h3', { text: ITEM_NAMES[it.type] || '設備' }), el('label', { class: 'f' }, '種類', type),
+      el('dl', { class: 'kv' }, el('dt', { text: '大きさ' }), el('dd', { text: `${fmtM(n.x2 - n.x1)} × ${fmtM(n.y2 - n.y1)}` })),
+      el('button', { text: '向きを90°回す（太線が壁側）', on: { click: () => { it.rot = ((it.rot || 0) + 1) % 4; commit(); } } }),
+      el('p', { class: 'muted', text: 'ドラッグで位置を動かせます。' }), del);
+  } else if (sel.type === 'start') {
+    card.append(el('h3', { text: '最初に立つ位置' }), el('p', { class: 'muted', text: '「最初に立つ位置」ツールでドラッグし直すと向きを変えられます。' }), del);
+  }
+  return card;
+}
+
+// ---------------- 3Dプレビュー ----------------
+let viewer3d = null;
+$('view3d').onclick = () => {
+  if (!plan) return;
+  if (!plan.scale) { toast('先に縮尺を合わせてください（ステップ1）'); setTool('scale'); return; }
+  if (!plan.walls.length) { toast('壁を1本以上なぞってください（ステップ2）'); setTool('wallRect'); return; }
+  const v = $('viewer'); v.hidden = false;
+  viewer3d = Walk3D.mount(v, plan, { title: plan.title || '3Dプレビュー', onClose: close3d });
+};
+function close3d() { if (viewer3d) viewer3d.dispose(); viewer3d = null; $('viewer').hidden = true; resize(); }
+
+// ---------------- サイトに公開（GitHub） ----------------
+const tokenStore = {
+  get() { try { return sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY); } catch (e) { return null; } },
+  set(t, remember) { try { (remember ? localStorage : sessionStorage).setItem(TOKEN_KEY, t); } catch (e) {} },
+};
+function pubMsg(text, kind) { const m = $('pubMsg'); m.textContent = text; m.className = 'msg ' + kind; m.hidden = !text; }
+$('publishBtn').onclick = () => {
+  if (!plan) return;
+  if (!plan.scale || !plan.walls.length) { toast('縮尺と壁を入れてから公開してください'); return; }
+  $('pubTitle').value = plan.title || ''; $('pubSummary').value = plan.summary || '';
+  $('pubTokenWrap').hidden = !!tokenStore.get(); pubMsg('', 'ok'); $('pubGo').disabled = false;
+  $('pubDialog').hidden = false; $('pubTitle').focus();
+};
+$('pubCancel').onclick = () => { $('pubDialog').hidden = true; };
+async function gh(token, path, opts = {}) {
+  const r = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}${path}`, {
+    ...opts, cache: 'no-store',
+    headers: { Accept: 'application/vnd.github+json', Authorization: 'Bearer ' + token, 'X-GitHub-Api-Version': '2022-11-28', ...(opts.body ? { 'Content-Type': 'application/json' } : {}) },
+  });
+  let body = null; try { body = await r.json(); } catch (e) {}
+  return { status: r.status, ok: r.ok, body };
+}
+const b64utf8 = str => { const bytes = new TextEncoder().encode(str); let s = ''; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000)); return btoa(s); };
+const unb64 = b64 => new TextDecoder().decode(Uint8Array.from(atob(b64.replace(/\s/g, '')), c => c.charCodeAt(0)));
+async function readJson(token, path, fallback) {
+  const r = await gh(token, `/contents/${path}?ref=${BRANCH}`);
+  if (r.status === 404) return fallback;
+  if (!r.ok) throw new Error('read ' + path + ' ' + r.status);
+  return JSON.parse(unb64(r.body.content));
+}
+$('pubGo').onclick = async () => {
+  const title = $('pubTitle').value.trim();
+  if (!title) { pubMsg('間取りの名前を入れてください', 'err'); $('pubTitle').focus(); return; }
+  let token = tokenStore.get();
+  if (!token) {
+    token = $('pubToken').value.trim();
+    if (!token) { pubMsg('アクセストークンを入れてください', 'err'); return; }
+  }
+  $('pubGo').disabled = true; pubMsg('権限を確認しています…', 'ok');
+  try {
+    const repo = await gh(token, '');
+    if (repo.status === 401) { try { sessionStorage.removeItem(TOKEN_KEY); localStorage.removeItem(TOKEN_KEY); } catch (e) {} $('pubTokenWrap').hidden = false; throw new Error('トークンが正しくないか、有効期限が切れています。入れ直してください。'); }
+    if (!repo.ok) throw new Error('リポジトリを確認できませんでした（' + repo.status + '）。');
+    const p = repo.body.permissions || {};
+    if (!(p.push || p.admin || p.maintain)) throw new Error('このトークンの持ち主には、サイトへの書き込み権限がありません。');
+    if (!$('pubTokenWrap').hidden) tokenStore.set(token, $('pubRemember').checked);
+
+    plan.title = title; plan.summary = $('pubSummary').value.trim(); $('title').value = title;
+    const id = plan.id || ('p' + Date.now().toString(36));
+    pubMsg('ファイルを送っています…', 'ok');
+    const catalog = await readJson(token, 'catalog.json', []);
+    const access = await readJson(token, 'access.json', {});
+    const now = new Date().toISOString();
+    const entry = { id, title, summary: plan.summary, rooms: plan.rooms.filter(r => r.name).map(r => r.name + (r.jo ? ` ${r.jo}帖` : '')), updatedAt: now };
+    const idx = catalog.findIndex(c => c.id === id);
+    if (idx >= 0) catalog[idx] = entry; else catalog.push(entry);
+    if (!(id in access)) access[id] = true;
+    const pub = { ...plan, id, image: `plans/${id}.jpg`, draftId: undefined, updatedAt: now };
+    const files = [
+      { path: `plans/${id}.json`, content: b64utf8(JSON.stringify(pub)) },
+      { path: `plans/${id}.jpg`, content: plan.image.split(',')[1] },
+      { path: 'catalog.json', content: b64utf8(JSON.stringify(catalog, null, 2) + '\n') },
+      { path: 'access.json', content: b64utf8(JSON.stringify(access, null, 2) + '\n') },
+    ];
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const ref = await gh(token, `/git/ref/heads/${BRANCH}`); if (!ref.ok) throw new Error('ref ' + ref.status);
+      const base = ref.body.object.sha;
+      const commitInfo = await gh(token, `/git/commits/${base}`); if (!commitInfo.ok) throw new Error('commit ' + commitInfo.status);
+      const tree = [];
+      for (const f of files) {
+        const b = await gh(token, '/git/blobs', { method: 'POST', body: JSON.stringify({ content: f.content, encoding: 'base64' }) });
+        if (!b.ok) throw new Error(b.status === 403 || b.status === 404 ? 'write' : 'blob ' + b.status);
+        tree.push({ path: f.path, mode: '100644', type: 'blob', sha: b.body.sha });
+      }
+      const t = await gh(token, '/git/trees', { method: 'POST', body: JSON.stringify({ base_tree: commitInfo.body.tree.sha, tree }) });
+      if (!t.ok) throw new Error('tree ' + t.status);
+      const c = await gh(token, '/git/commits', { method: 'POST', body: JSON.stringify({ message: `間取りを公開: ${title}`, tree: t.body.sha, parents: [base] }) });
+      if (!c.ok) throw new Error('commit ' + c.status);
+      const u = await gh(token, `/git/refs/heads/${BRANCH}`, { method: 'PATCH', body: JSON.stringify({ sha: c.body.sha }) });
+      if (u.ok) break;
+      if (attempt === 1) throw new Error('ほかの変更と重なったため保存できませんでした。もう一度「公開する」を押してください。');
+    }
+    plan.id = id; commit();
+    const url = new URL(`view.html?id=${id}`, location.href).href;
+    const m = $('pubMsg'); m.className = 'msg ok'; m.hidden = false; m.textContent = '公開しました。1〜2分でサイトに反映されます。アドレス：';
+    const a = document.createElement('a'); a.href = url; a.target = '_blank'; a.rel = 'noopener'; a.textContent = url; m.append(a);
+  } catch (err) {
+    const t = String(err.message || err);
+    pubMsg(t === 'write' ? '書き込みが許可されませんでした。トークンの Contents 権限が「Read and write」か確認してください。'
+      : /^(ref|commit|tree|blob|read)/.test(t) ? '公開できませんでした（' + t + '）。時間をおいてもう一度お試しください。' : t, 'err');
+  } finally { $('pubGo').disabled = false; }
+};
+
+// ---------------- その他 ----------------
+let toastT;
+function toast(t) { const e = $('toast'); e.textContent = t; e.style.opacity = 1; clearTimeout(toastT); toastT = setTimeout(() => e.style.opacity = 0, 2600); }
+new ResizeObserver(resize).observe($('stage'));
+
+// 起動：?id= なら公開済みの間取りを編集、なければ開始画面
+(async () => {
+  resize();
+  const id = new URLSearchParams(location.search).get('id');
+  if (id && /^[a-z0-9-]+$/i.test(id)) {
+    try {
+      const r = await fetch(`plans/${id}.json?t=${Date.now()}`, { cache: 'no-store' });
+      if (!r.ok) throw new Error();
+      const p = await r.json();
+      const ir = await fetch(`${p.image}?t=${Date.now()}`, { cache: 'no-store' });
+      const blob = await ir.blob();
+      p.image = await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(blob); });
+      openPlan(p); toast('公開中の間取りを開きました。直して「サイトに公開」で上書きできます');
+      return;
+    } catch (e) { toast('公開中の間取りを読み込めませんでした'); }
+  }
+  showStart();
+})();
+})();
+</script>
+</body>
+</html>

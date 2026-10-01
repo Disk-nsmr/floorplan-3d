@@ -49,6 +49,8 @@
   .card.off .plan{opacity:.45}
   footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;color:var(--sub);font-size:12px;border-top:1px solid var(--line);padding-top:14px}
   footer a{color:var(--sub)}
+  .cta{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:8px}
+  .cta span{color:var(--sub);font-size:13px}
 </style>
 </head>
 <body>
@@ -57,6 +59,7 @@
     <span class="eyebrow">FLOOR PLAN WALKTHROUGH</span>
     <h1>間取り3Dウォークスルー</h1>
     <p>間取り図から起こした3Dモデルです。目線の高さ155cmで部屋の中を歩き、広さや動線を確かめられます。パソコンはキーボードとマウス、スマホは画面のスティックで操作します。</p>
+    <div class="cta"><a class="btn" href="app.html">＋ 図面から3Dを作る</a><span>図面の画像を読み込み、壁やドアをなぞるだけで作れます</span></div>
   </header>
 
   <main class="grid" id="list">
@@ -110,11 +113,30 @@
 </div>
 <script>
 (async () => {
-  let access = null;
+  let access = null, catalog = [];
   try {
-    const r = await fetch('access.json?t=' + Date.now(), { cache: 'no-store' });
-    if (r.ok) access = await r.json();
+    const [a, c] = await Promise.all([
+      fetch('access.json?t=' + Date.now(), { cache: 'no-store' }),
+      fetch('catalog.json?t=' + Date.now(), { cache: 'no-store' }),
+    ]);
+    if (a.ok) access = await a.json();
+    if (c.ok) catalog = await c.json();
   } catch (e) {}
+  // 間取り3Dメーカーで公開した間取りのカードを追加
+  const list = document.getElementById('list');
+  const mk = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+  for (const p of Array.isArray(catalog) ? catalog : []) {
+    if (!p || !/^[a-z0-9-]+$/i.test(p.id)) continue;
+    const card = mk('article', 'card'); card.dataset.id = p.id;
+    const plan = mk('div', 'plan'); const im = mk('img'); im.src = `plans/${p.id}.jpg`; im.alt = `${p.title} の間取り図`; im.loading = 'lazy'; plan.append(im);
+    const body = mk('div', 'body');
+    const row = mk('div', 'row'); row.append(mk('h2', null, p.title || '名前なし'), mk('span', 'pill', '確認中'));
+    const dl = mk('dl');
+    if (p.summary) dl.append(mk('dt', null, '説明'), mk('dd', null, p.summary));
+    if (p.rooms && p.rooms.length) dl.append(mk('dt', null, '部屋'), mk('dd', null, p.rooms.slice(0, 8).join('・')));
+    const btn = mk('a', 'btn', '3Dで見る'); btn.href = `view.html?id=${p.id}`;
+    body.append(row, dl, btn); card.append(plan, body); list.append(card);
+  }
   document.querySelectorAll('.card').forEach(card => {
     const pill = card.querySelector('.pill'), btn = card.querySelector('.btn');
     if (!access) { pill.textContent = '状態を取得できません'; return; }

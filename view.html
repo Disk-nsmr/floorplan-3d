@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>間取り3Dウォークスルー</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#1b2027;font-family:system-ui,-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;color:#eef1f4}
+  [hidden]{display:none!important}
+  .cover{position:fixed;inset:0;z-index:60;display:grid;place-items:center;padding:16px;background:#1b2027}
+  .box{max-width:420px;text-align:center;display:grid;gap:10px;justify-items:center}
+  .mark{width:44px;height:44px;border-radius:50%;border:2px solid #a9b3bd;display:grid;place-items:center;font-size:20px;color:#a9b3bd}
+  h1{font-size:20px;margin:0;text-wrap:balance}
+  p{margin:0;color:#a9b3bd;font-size:14px;line-height:1.7}
+  a{color:#f0a14a}
+  a:focus-visible{outline:2px solid #f0a14a;outline-offset:3px}
+</style>
+</head>
+<body>
+<div class="cover" id="cover">
+  <div class="box">
+    <div class="mark">!</div>
+    <h1 id="gTitle">読み込んでいます</h1>
+    <p id="gSub">しばらくお待ちください。</p>
+    <a href="./">間取りの一覧へ</a>
+  </div>
+</div>
+<div id="stage"></div>
+<script src="three.min.js"></script>
+<script src="walk3d.js"></script>
+<script>
+(async () => {
+  const $ = id => document.getElementById(id);
+  const TEXT = {
+    loading: ['読み込んでいます', 'しばらくお待ちください。'],
+    closed: ['このページは現在、公開を停止しています', '管理者が公開を再開すると見られるようになります。しばらくしてから開き直してください。'],
+    missing: ['この間取りは見つかりませんでした', 'アドレスが正しいか確認してください。一覧から開き直すこともできます。'],
+    error: ['読み込めませんでした', '通信状態を確認して、ページを再読み込みしてください。'],
+  };
+  const show = s => { $('cover').hidden = false; $('gTitle').textContent = TEXT[s][0]; $('gSub').textContent = TEXT[s][1]; };
+  const id = new URLSearchParams(location.search).get('id');
+  if (!id || !/^[a-z0-9-]+$/i.test(id)) return show('missing');
+  const readAccess = async () => {
+    const r = await fetch('access.json?t=' + Date.now(), { cache: 'no-store' });
+    if (!r.ok) throw new Error();
+    const a = await r.json();
+    return id in a ? a[id] === true : null;
+  };
+  let open;
+  try { open = await readAccess(); } catch (e) { return show('error'); }
+  if (open === null) return show('missing');
+  if (!open) return show('closed');
+  let plan;
+  try {
+    const r = await fetch(`plans/${id}.json?t=${Date.now()}`, { cache: 'no-store' });
+    if (r.status === 404) return show('missing');
+    if (!r.ok) throw new Error();
+    plan = await r.json();
+  } catch (e) { return show('error'); }
+  document.title = (plan.title || '間取り') + '｜3Dウォークスルー';
+  $('cover').hidden = true;
+  let viewer = Walk3D.mount($('stage'), plan, { title: plan.title, home: true });
+  // 1分ごとに公開状態を確認し、停止されたら閉じる
+  setInterval(async () => {
+    try {
+      const nowOpen = await readAccess();
+      if (!nowOpen && viewer) { viewer.dispose(); viewer = null; show('closed'); }
+      if (nowOpen && !viewer) location.reload();
+    } catch (e) {}
+  }, 60000);
+})();
+</script>
+</body>
+</html>
