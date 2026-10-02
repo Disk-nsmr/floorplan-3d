@@ -58,6 +58,12 @@
   .msg.ok{background:var(--ok-bg);color:var(--ok)}
   .msg.err{background:var(--stop-bg);color:var(--stop)}
   .who{font-size:13px;color:var(--sub)}
+  .plan .pick{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--sub);cursor:pointer}
+  .plan .pick input{width:16px;height:16px;accent-color:var(--stop-btn)}
+  .plan.selected{border-color:var(--stop-btn);background:var(--stop-bg)}
+  .delbar{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:12px}
+  button.stop-outline{background:transparent;color:var(--stop);border-color:var(--stop-btn)}
+  .confirm ul{margin:0;padding-left:1.3em}
   [hidden]{display:none!important}
 </style>
 </head>
@@ -95,6 +101,15 @@
       <span class="who" id="who"></span>
     </div>
     <div class="plans" id="plans"></div>
+    <div class="delbar">
+      <label class="chk" for="selAll"><input type="checkbox" id="selAll"> すべて選ぶ</label>
+      <button class="stop-outline" id="delBtn" disabled>選んだ図面を削除</button>
+    </div>
+    <div class="confirm" id="delConfirm" hidden>
+      <p><b>次の図面を完全に削除します。元に戻せません。</b>3Dページ・図面の画像・公開設定がすべて消え、一覧からもなくなります。</p>
+      <ul id="delList"></ul>
+      <div class="actions"><button class="stop" id="delYes">削除する</button><button id="delNo">キャンセル</button></div>
+    </div>
     <div class="msg" id="msg" hidden></div>
     <p class="sub" id="updated"></p>
     <p class="sub">切り替えてからサイトに反映されるまで、1〜2分かかります。今ページを開いている人の画面も、1分以内に自動で切り替わります。</p>
@@ -110,11 +125,13 @@
 <script>
 (() => {
   const OWNER = 'Disk-nsmr', REPO = 'floorplan-3d', BRANCH = 'main', FILE = 'access.json';
+  // files: 削除するときに消すファイル
   const FIXED_PLANS = [
     { id: 'plan1', name: '洋7.5帖 1K', href: 'plan1.html' },
     { id: 'plan2', name: '洋8.2帖 1K', href: 'plan2.html' },
     { id: 'plan3', name: '3LDK 戸建て', href: 'plan3.html' },
-  ];
+  ].map(p => ({ ...p, files: [`${p.id}.html`, `${p.id}.png`] }));
+  const selected = new Set();
   let PLANS = FIXED_PLANS;
   const API = `https://api.github.com/repos/${OWNER}/${REPO}`;
   const KEY = 'floorplan-admin-token';
@@ -176,9 +193,12 @@
     const c = await gh(`/contents/catalog.json?ref=${BRANCH}`);
     let catalog = [];
     if (c.ok) { try { catalog = JSON.parse(b64decode(c.body.content)); } catch (e) {} }
-    PLANS = FIXED_PLANS.concat((Array.isArray(catalog) ? catalog : [])
+    // 削除済み（公開設定から消えた）固定の間取りは出さない
+    PLANS = FIXED_PLANS.filter(p => p.id in access).concat((Array.isArray(catalog) ? catalog : [])
       .filter(p => p && /^[a-z0-9-]+$/i.test(p.id))
-      .map(p => ({ id: p.id, name: p.title || '名前なし', href: `view.html?id=${p.id}`, edit: p.mode === 'auto' ? null : `editor.html?id=${p.id}` })));
+      .map(p => ({ id: p.id, name: p.title || '名前なし', href: `view.html?id=${p.id}`, edit: p.mode === 'auto' ? null : `editor.html?id=${p.id}`, files: [`plans/${p.id}.json`, `plans/${p.id}.jpg`] })));
+    for (const id of [...selected]) if (!PLANS.some(p => p.id === id)) selected.delete(id);
+    $('delConfirm').hidden = true;
     render();
   }
 
@@ -186,13 +206,18 @@
     const wrap = $('plans'); wrap.textContent = '';
     for (const p of PLANS) {
       const on = access[p.id] === true;
-      const el = document.createElement('div'); el.className = 'plan';
+      const el = document.createElement('div'); el.className = 'plan' + (selected.has(p.id) ? ' selected' : '');
       const row = document.createElement('div'); row.className = 'row';
       const left = document.createElement('div');
+      const pick = document.createElement('label'); pick.className = 'pick';
+      const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = selected.has(p.id); cb.disabled = busy;
+      cb.setAttribute('aria-label', `「${p.name}」を削除に選ぶ`);
+      cb.onchange = () => { cb.checked ? selected.add(p.id) : selected.delete(p.id); $('delConfirm').hidden = true; render(); };
+      pick.append(cb, document.createTextNode('削除に選ぶ'));
       const name = document.createElement('strong'); name.textContent = p.name;
       const pill = document.createElement('span'); pill.className = 'pill ' + (on ? 'on' : 'off'); pill.textContent = on ? '公開中' : '公開停止中';
       pill.style.marginLeft = '10px';
-      left.append(name, pill);
+      left.append(pick, name, pill);
       const btn = document.createElement('button');
       btn.className = on ? 'stop' : 'go';
       btn.textContent = on ? '公開を停止する' : '公開を再開する';
@@ -218,7 +243,68 @@
       wrap.append(el);
     }
     $('updated').textContent = access.updatedAt ? '最終変更：' + fmt(access.updatedAt) : '';
+    $('delBtn').disabled = busy || !selected.size;
+    $('delBtn').textContent = selected.size ? `選んだ図面を削除（${selected.size}件）` : '選んだ図面を削除';
+    $('selAll').checked = PLANS.length > 0 && selected.size === PLANS.length;
+    $('selAll').disabled = busy || !PLANS.length;
   }
+
+  // ---- 削除（1回のコミットで、ファイル・一覧・公開設定から消す） ----
+  async function readJson(path, fallback) {
+    const r = await gh(`/contents/${path}?ref=${BRANCH}`);
+    if (r.status === 404) return fallback;
+    if (!r.ok) throw new Error('read');
+    return JSON.parse(b64decode(r.body.content));
+  }
+  async function exists(path) { return (await gh(`/contents/${path}?ref=${BRANCH}`)).ok; }
+  async function deletePlans(targets) {
+    busy = true; $('delConfirm').hidden = true; showMsg('削除しています…', 'ok'); render();
+    try {
+      const ids = new Set(targets.map(p => p.id));
+      const cat = await readJson('catalog.json', []);
+      const acc = await readJson(FILE, {});
+      ids.forEach(id => { delete acc[id]; });
+      acc.updatedAt = new Date().toISOString();
+      const tree = [];
+      for (const p of targets) for (const f of p.files) if (await exists(f)) tree.push({ path: f, mode: '100644', type: 'blob', sha: null });
+      const put = async (path, text) => {
+        const b = await gh('/git/blobs', { method: 'POST', body: JSON.stringify({ content: b64encode(text), encoding: 'base64' }) });
+        if (!b.ok) throw new Error(b.status === 403 || b.status === 404 ? 'write' : 'blob');
+        tree.push({ path, mode: '100644', type: 'blob', sha: b.body.sha });
+      };
+      await put('catalog.json', JSON.stringify((Array.isArray(cat) ? cat : []).filter(c => !ids.has(c.id)), null, 2) + '\n');
+      await put(FILE, JSON.stringify(acc, null, 2) + '\n');
+      const ref = await gh(`/git/ref/heads/${BRANCH}`); if (!ref.ok) throw new Error('ref');
+      const base = ref.body.object.sha;
+      const cm = await gh(`/git/commits/${base}`); if (!cm.ok) throw new Error('commit');
+      const t = await gh('/git/trees', { method: 'POST', body: JSON.stringify({ base_tree: cm.body.tree.sha, tree }) });
+      if (!t.ok) throw new Error('tree');
+      const names = targets.map(p => p.name).join('・');
+      const c = await gh('/git/commits', { method: 'POST', body: JSON.stringify({ message: `図面を削除: ${names}`, tree: t.body.sha, parents: [base] }) });
+      if (!c.ok) throw new Error('commit');
+      const u = await gh(`/git/refs/heads/${BRANCH}`, { method: 'PATCH', body: JSON.stringify({ sha: c.body.sha }) });
+      if (!u.ok) throw new Error(u.status === 422 ? 'conflict' : 'ref');
+      targets.forEach(p => selected.delete(p.id));
+      busy = false;
+      showMsg(`${targets.length}件の図面を削除しました（${names}）。1〜2分でサイトに反映されます。`, 'ok');
+      await load();
+    } catch (err) {
+      busy = false;
+      const m = String(err.message || err);
+      showMsg(m === 'write' ? '書き込みが許可されませんでした。トークンの権限で Contents が「Read and write」になっているか確認してください。'
+        : m === 'conflict' ? 'ほかの変更と重なったため削除できませんでした。最新の状態を読み込み直したので、もう一度操作してください。'
+        : '削除できませんでした。時間をおいてもう一度お試しください。', 'err');
+      await load();
+    }
+  }
+  $('selAll').onchange = e => { PLANS.forEach(p => e.target.checked ? selected.add(p.id) : selected.delete(p.id)); $('delConfirm').hidden = true; render(); };
+  $('delBtn').onclick = () => {
+    const list = $('delList'); list.textContent = '';
+    PLANS.filter(p => selected.has(p.id)).forEach(p => { const li = document.createElement('li'); li.textContent = p.name; list.append(li); });
+    $('delConfirm').hidden = false; $('delNo').focus();
+  };
+  $('delNo').onclick = () => { $('delConfirm').hidden = true; };
+  $('delYes').onclick = () => deletePlans(PLANS.filter(p => selected.has(p.id)));
 
   async function save(p, next) {
     busy = true; showMsg('保存しています…', 'ok'); render();

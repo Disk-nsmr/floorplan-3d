@@ -140,6 +140,7 @@
   document.querySelectorAll('.card').forEach(card => {
     const pill = card.querySelector('.pill'), btn = card.querySelector('.btn');
     if (!access) { pill.textContent = '状態を取得できません'; return; }
+    if (!(card.dataset.id in access)) { card.remove(); return; }  // 管理者ページで削除された間取り
     const on = access[card.dataset.id] === true;
     pill.className = 'pill ' + (on ? 'on' : 'off');
     pill.textContent = on ? '公開中' : '公開停止中';
